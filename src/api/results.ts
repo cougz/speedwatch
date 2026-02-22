@@ -29,7 +29,11 @@ function stripPrefix(key: string, prefix: string): string {
 }
 
 function filenameToTimestamp(filename: string): string {
-  const [datePart, ...rest] = filename.split("T");
+  let name = filename;
+  if (name.startsWith("speedtest-")) {
+    name = name.slice(10);
+  }
+  const [datePart, ...rest] = name.split("T");
   const timePart = rest.join("T");
   let matchCount = 0;
   const fixedTime = timePart.replace(/-/g, () => {
