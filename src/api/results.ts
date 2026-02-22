@@ -158,33 +158,44 @@ export async function handleResults(
 
     const records: SpeedtestRecord[] = [];
 
-    for (const obj of filteredObjects) {
-      const filename = stripPrefix(obj.key, env.R2_PREFIX);
-      const body = await env.R2_BUCKET.get(obj.key);
-      if (!body) continue;
-      const text = await body.text();
-      const data = JSON.parse(text);
-      const name = endpointName(data.endpoint);
-      const rec: SpeedtestRecord = {
-        timestamp: filenameToTimestamp(filename),
-        sessionID: data.sessionID,
-        endpoint: data.endpoint,
-        endpointName: name,
-        success: data.success,
-        download: toMbps(data.result?.download || 0),
-        upload: toMbps(data.result?.upload || 0),
-        latency: data.result?.latency || 0,
-        jitter: data.result?.jitter || 0,
-        downLoadedLatency: data.result?.downLoadedLatency || 0,
-        downLoadedJitter: data.result?.downLoadedJitter || 0,
-        upLoadedLatency: data.result?.upLoadedLatency || 0,
-        upLoadedJitter: data.result?.upLoadedJitter || 0,
-      };
-
-      if (endpointFilter && rec.endpointName !== endpointFilter) {
-        continue;
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < filteredObjects.length; i += BATCH_SIZE) {
+      const batch = filteredObjects.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async (obj) => {
+          const filename = stripPrefix(obj.key, env.R2_PREFIX);
+          try {
+            const body = await env.R2_BUCKET.get(obj.key);
+            if (!body) return null;
+            const text = await body.text();
+            const data = JSON.parse(text);
+            const name = endpointName(data.endpoint);
+            const rec: SpeedtestRecord = {
+              timestamp: filenameToTimestamp(filename),
+              sessionID: data.sessionID,
+              endpoint: data.endpoint,
+              endpointName: name,
+              success: data.success,
+              download: toMbps(data.result?.download || 0),
+              upload: toMbps(data.result?.upload || 0),
+              latency: data.result?.latency || 0,
+              jitter: data.result?.jitter || 0,
+              downLoadedLatency: data.result?.downLoadedLatency || 0,
+              downLoadedJitter: data.result?.downLoadedJitter || 0,
+              upLoadedLatency: data.result?.upLoadedLatency || 0,
+              upLoadedJitter: data.result?.upLoadedJitter || 0,
+            };
+            if (endpointFilter && rec.endpointName !== endpointFilter) return null;
+            return rec;
+          } catch (e) {
+            console.error(`[handleResults] Error reading ${obj.key}:`, e);
+            return null;
+          }
+        })
+      );
+      for (const r of results) {
+        if (r) records.push(r);
       }
-      records.push(rec);
     }
 
     records.sort((a, b) => b.timestamp.localeCompare(a.timestamp));

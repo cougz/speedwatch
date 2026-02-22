@@ -452,12 +452,23 @@ import Layout from '../layouts/Layout.astro';
 
     let selectedLimit = 100;
     let selectedEndpoint = 'all';
-    let currentCursor: string | null = null;
+    let serverCursor: string | null = null;
+    let displayedCount = 10;
     let allRecords: SpeedtestRecord[] = [];
 
     function classifyRecord(r: SpeedtestRecord): 'ok' | 'warn' | 'crit' {
       if (r.download < THRESHOLDS.download.crit || r.upload < THRESHOLDS.upload.crit || r.latency > THRESHOLDS.latency.crit || r.jitter > THRESHOLDS.jitter.crit) return 'crit';
       if (r.download < THRESHOLDS.download.warn || r.upload < THRESHOLDS.upload.warn || r.latency > THRESHOLDS.latency.warn || r.jitter > THRESHOLDS.jitter.warn) return 'warn';
+      return 'ok';
+    }
+
+    function classifyTimelinePoint(p) {
+      if (p.downloadMbps < THRESHOLDS.download.crit || p.uploadMbps < THRESHOLDS.upload.crit ||
+          p.latencyMs > THRESHOLDS.latency.crit     || p.jitterMs > THRESHOLDS.jitter.crit)
+        return 'crit';
+      if (p.downloadMbps < THRESHOLDS.download.warn || p.uploadMbps < THRESHOLDS.upload.warn ||
+          p.latencyMs > THRESHOLDS.latency.warn     || p.jitterMs > THRESHOLDS.jitter.warn)
+        return 'warn';
       return 'ok';
     }
 
@@ -482,11 +493,12 @@ import Layout from '../layouts/Layout.astro';
         const results = await resultsRes.json();
 
         allRecords = results.records;
-        currentCursor = results.cursor;
+        serverCursor = results.cursor || null;
+        displayedCount = 10;
 
         renderKpiCards(summary);
         renderCharts(summary);
-        renderTimeline(allRecords, summary.incidents);
+        renderTimeline(summary);
         renderIncidents(summary.incidents);
         renderTable(allRecords);
         updatePageMeta(summary);
@@ -576,59 +588,48 @@ import Layout from '../layouts/Layout.astro';
       `;
     }
 
-    function renderTimeline(records: SpeedtestRecord[], incidents: Incident[]) {
-      const strip = document.getElementById('timeline-strip')!;
-      const axis = document.getElementById('timeline-axis')!;
-      const tooltip = document.getElementById('timeline-tooltip')!;
+    function renderTimeline(summary) {
+      const strip   = document.getElementById('timeline-strip');
+      const axis    = document.getElementById('timeline-axis');
+      const tooltip = document.getElementById('timeline-tooltip');
       strip.innerHTML = '';
-      axis.innerHTML = '';
+      axis.innerHTML  = '';
 
-      if (!records.length) return;
-
-      const sorted = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-      const maxCells = 20;
-      const displayRecords = sorted.slice(0, maxCells);
-      
-      const oldest = new Date(displayRecords[0].timestamp).getTime();
-      const newest = new Date(displayRecords[displayRecords.length - 1].timestamp).getTime();
-      const spanMs = newest - oldest || 1;
-
-      displayRecords.forEach(rec => {
-        const level = classifyRecord(rec);
-        const cell = document.createElement('div');
-        cell.className = `timeline-cell cell-${level}`;
-        
-        cell.addEventListener('mouseenter', () => {
-          tooltip.innerHTML = `<strong>${new Date(rec.timestamp).toLocaleString()}</strong><br>DL: ${rec.download.toFixed(1)} Mbps  UL: ${rec.upload.toFixed(1)} Mbps<br>Latency: ${rec.latency.toFixed(1)} ms  Jitter: ${rec.jitter.toFixed(2)} ms<br>Endpoint: ${rec.endpointName}`;
-          tooltip.style.display = 'block';
-        });
-        cell.addEventListener('mousemove', (e: MouseEvent) => {
-          tooltip.style.left = `${e.clientX + 12}px`;
-          tooltip.style.top = `${e.clientY - 8}px`;
-        });
-        cell.addEventListener('mouseleave', () => {
-          tooltip.style.display = 'none';
-        });
-        
-        strip.appendChild(cell);
-      });
-
-      if (!displayRecords.length) {
-        axis.innerHTML = '<span style="color: var(--lo)">No timeline data available</span>';
+      const tl = summary.timeline || [];
+      if (tl.length === 0) {
+        strip.innerHTML = '<div style="color:var(--lo);font-size:11px;font-family:var(--mono);padding:6px 0">No data in time window</div>';
         return;
       }
 
-      const labelCount = 5;
-      for (let i = 0; i <= labelCount; i++) {
-        const ts = new Date(oldest + (spanMs * i) / labelCount);
-        const label = document.createElement('span');
-        label.textContent = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        axis.appendChild(label);
+      tl.forEach(point => {
+        const level = classifyTimelinePoint(point);
+        const cell  = document.createElement('div');
+        cell.className = `timeline-cell cell-${level}`;
+        cell.addEventListener('mouseenter', () => {
+          tooltip.innerHTML = `
+            <strong>${new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong> · ${point.count} test${point.count !== 1 ? 's' : ''}<br>
+            DL: ${point.downloadMbps.toFixed(1)} Mbps &nbsp; UL: ${point.uploadMbps.toFixed(1)} Mbps<br>
+            Latency: ${point.latencyMs.toFixed(1)} ms &nbsp; Jitter: ${point.jitterMs.toFixed(2)} ms
+          `;
+          tooltip.style.display = 'block';
+        });
+        cell.addEventListener('mousemove', e => {
+          tooltip.style.left = `${e.clientX + 12}px`;
+          tooltip.style.top  = `${e.clientY - 8}px`;
+        });
+        cell.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+        strip.appendChild(cell);
+      });
+
+      const step = Math.max(1, Math.floor(tl.length / 5));
+      for (let i = 0; i < tl.length; i += step) {
+        const span = document.createElement('span');
+        span.textContent = new Date(tl[i].hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        axis.appendChild(span);
       }
-
-      const critCount = incidents.filter(inc => inc.level === 'crit').length;
-      const warnCount = incidents.filter(inc => inc.level === 'warn').length;
-
+      const lastSpan = document.createElement('span');
+      lastSpan.textContent = new Date(tl[tl.length - 1].hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      axis.appendChild(lastSpan);
     }
 
     function renderIncidents(incidents: Incident[]) {
@@ -681,20 +682,19 @@ import Layout from '../layouts/Layout.astro';
       }
     }
 
-    function renderTable(records: SpeedtestRecord[]) {
-      const tbody = document.getElementById('results-body')!;
+    function renderTable() {
+      const tbody = document.getElementById('results-body');
       tbody.innerHTML = '';
 
-      const filteredRecords = selectedEndpoint === 'all' 
-        ? records 
-        : records.filter(r => r.endpointName === selectedEndpoint);
-      
-      const maxRows = 10;
-      const displayRecords = filteredRecords.slice(0, maxRows);
+      const filtered = selectedEndpoint === 'all'
+        ? allRecords
+        : allRecords.filter(r => r.endpointName === selectedEndpoint);
 
-      for (const rec of displayRecords) {
-        const statusClass = !rec.success ? 'status-fail' : rec.latency > 15 ? 'status-warn' : 'status-ok';
-        const statusText = !rec.success ? '✗ Fail' : rec.latency > 15 ? '⚠ Slow' : '✓ OK';
+      const slice = filtered.slice(0, displayedCount);
+      for (const rec of slice) {
+        const level = classifyRecord(rec);
+        const statusClass = !rec.success ? 'status-fail' : level !== 'ok' ? 'status-warn' : 'status-ok';
+        const statusText  = !rec.success ? '✗ Fail'      : level !== 'ok' ? '⚠ Slow'      : '✓ OK';
         const row = document.createElement('tr');
         row.innerHTML = `
           <td>${new Date(rec.timestamp).toLocaleString()}</td>
@@ -710,11 +710,20 @@ import Layout from '../layouts/Layout.astro';
         `;
         tbody.appendChild(row);
       }
+      updateLoadMoreBtn(filtered);
+    }
 
-      const loadMoreBtn = document.getElementById('load-more')!;
-      loadMoreBtn.disabled = !currentCursor || filteredRecords.length <= maxRows;
-      if (filteredRecords.length > maxRows) {
-        loadMoreBtn.textContent = `Load More (${filteredRecords.length - maxRows} remaining)`;
+    function updateLoadMoreBtn(filtered) {
+      const btn = document.getElementById('load-more');
+      const hasMoreLocal  = filtered.length > displayedCount;
+      const hasMoreServer = !!serverCursor;
+      btn.disabled = !hasMoreLocal && !hasMoreServer;
+      if (hasMoreLocal) {
+        btn.textContent = `Show More (${filtered.length - displayedCount} in memory)`;
+      } else if (hasMoreServer) {
+        btn.textContent = 'Load More from Server';
+      } else {
+        btn.textContent = 'No More Results';
       }
     }
 
@@ -736,7 +745,8 @@ import Layout from '../layouts/Layout.astro';
           navRight.querySelectorAll('.ep-filter').forEach(p => p.classList.remove('active'));
           pill.classList.add('active');
           selectedEndpoint = pill.dataset.ep || 'all';
-          renderTable(allRecords);
+          displayedCount = 10;
+          renderTable();
         });
       });
     }
@@ -756,15 +766,30 @@ import Layout from '../layouts/Layout.astro';
     });
 
     document.getElementById('load-more')?.addEventListener('click', async () => {
-      if (!currentCursor) return;
+      const filtered = selectedEndpoint === 'all'
+        ? allRecords
+        : allRecords.filter(r => r.endpointName === selectedEndpoint);
+
+      if (filtered.length > displayedCount) {
+        displayedCount += 10;
+        renderTable();
+        return;
+      }
+
+      if (!serverCursor) return;
+      const btn = document.getElementById('load-more');
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
       try {
-        const res = await fetch(`/api/results?limit=${selectedLimit}&cursor=${currentCursor}`);
+        const res  = await fetch(`/api/results?limit=100&cursor=${serverCursor}`);
         const data = await res.json();
-        allRecords = allRecords.concat(data.records);
-        currentCursor = data.cursor;
-        renderTable(allRecords);
+        allRecords   = allRecords.concat(data.records || []);
+        serverCursor = data.cursor || null;
+        renderTable();
       } catch (err) {
         console.error('Failed to load more:', err);
+        btn.disabled = false;
+        btn.textContent = 'Retry Load More';
       }
     });
 
