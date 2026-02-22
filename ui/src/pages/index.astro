@@ -23,17 +23,17 @@ import Layout from '../layouts/Layout.astro';
     .pill {
       display: flex; align-items: center; gap: 4px;
       padding: 5px 12px; border-radius: 20px;
-      border: 1px solid var(--s3); background: var(--s2);
-      color: var(--md); font-size: 12px; font-weight: 500;
+      border: 1px solid var(--border-color); background: var(--bg-tertiary);
+      color: var(--text-secondary); font-size: 12px; font-weight: 500;
       cursor: pointer; transition: all 0.15s ease;
       user-select: none;
     }
-    .pill:hover { border-color: var(--brand); color: var(--brand); }
-    .pill.active { border-color: var(--brand); background: var(--brand-glow); color: var(--brand-light); }
+    .pill:hover { border-color: var(--cf-orange); color: var(--cf-orange); }
+    .pill.active { border-color: var(--cf-orange); background: rgba(244,128,36,0.1); color: var(--cf-orange-light); }
 
     .divider {
       width: 100%; max-width: 960px; margin: 0 auto 24px;
-      height: 1px; background: var(--s3); border: none;
+      height: 1px; background: var(--border-color); border: none;
     }
 
     .hero {
@@ -45,14 +45,14 @@ import Layout from '../layouts/Layout.astro';
       font-weight: 700;
       line-height: 1.15;
       margin-bottom: 16px;
-      background: linear-gradient(135deg, #ffffff 0%, var(--brand-light) 100%);
+      background: linear-gradient(135deg, #ffffff 0%, var(--cf-orange-light) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
     .hero-subtitle {
       font-size: 1rem;
-      color: var(--md);
+      color: var(--text-secondary);
       line-height: 1.6;
       max-width: 480px;
       margin: 0 auto;
@@ -72,14 +72,14 @@ import Layout from '../layouts/Layout.astro';
       align-items: center;
       gap: 4px;
       font-size: 0.85em;
-      color: var(--lo);
+      color: var(--text-muted);
     }
     .cf-workers-icon {
-      color: var(--brand);
+      color: var(--cf-orange);
       vertical-align: text-bottom;
     }
     .powered-by a {
-      color: var(--brand);
+      color: var(--cf-orange);
       font-weight: 500;
     }
 
@@ -111,7 +111,7 @@ import Layout from '../layouts/Layout.astro';
       color: var(--hi); line-height: 1; margin-bottom: 4px;
     }
     .kpi-value.loading {
-      background: linear-gradient(90deg, var(--s2) 25%, var(--s3) 50%, var(--s2) 75%);
+      background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--border-color) 50%, var(--bg-tertiary) 75%);
       background-size: 200% 100%; animation: shimmer 1.5s infinite;
       color: transparent; border-radius: 4px;
     }
@@ -204,13 +204,13 @@ import Layout from '../layouts/Layout.astro';
       margin-top: auto;
       padding: 24px 0 32px;
       text-align: center;
-      color: var(--md);
+      color: var(--text-secondary);
       font-size: 12px;
     }
-    footer a { color: var(--md); }
-    footer a:hover { color: var(--brand); }
+    footer a { color: var(--text-secondary); }
+    footer a:hover { color: var(--cf-orange); }
     footer code {
-      background: var(--s2);
+      background: var(--bg-tertiary);
       padding: 1px 5px;
       border-radius: 3px;
       font-size: 11px;
@@ -256,8 +256,8 @@ import Layout from '../layouts/Layout.astro';
       <div class="pill time-pill" data-hours="168">7d</div>
       <div class="pill time-pill" data-hours="8760">All</div>
       <div class="pill" id="custom-pill">Custom</div>
-      <input type="date" id="custom-from" style="padding:4px 8px;font-size:11px;background:var(--s2);color:var(--lo);border:1px solid var(--s3);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
-      <input type="date" id="custom-to" style="padding:4px 8px;font-size:11px;background:var(--s2);color:var(--lo);border:1px solid var(--s3);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
+      <input type="date" id="custom-from" style="padding:4px 8px;font-size:11px;background:var(--bg-tertiary);color:var(--text-muted);border:1px solid var(--border-color);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
+      <input type="date" id="custom-to" style="padding:4px 8px;font-size:11px;background:var(--bg-tertiary);color:var(--text-muted);border:1px solid var(--border-color);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
     </div>
 
     <hr class="divider" />
