@@ -13,7 +13,7 @@
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",
-      "bucket_name": "YOUR_BUCKET_NAME_HERE"
+      "bucket_name": "your-bucket-name"
     }
   ],
   "ratelimits": [
