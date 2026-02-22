@@ -378,6 +378,15 @@ import Layout from '../layouts/Layout.astro';
         <div style="position:relative; height:100px; width:100%">
           <canvas id="latency-chart"></canvas>
         </div>
+        <div class="chart-header" style="margin-top:16px; margin-bottom:8px;">
+          <div class="chart-title">Jitter Timeline</div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-color" style="background:var(--c-jitter)"></div> Jitter</div>
+          </div>
+        </div>
+        <div style="position:relative; height:100px; width:100%">
+          <canvas id="jitter-chart"></canvas>
+        </div>
       </div>
     </div>
 
@@ -488,6 +497,7 @@ import Layout from '../layouts/Layout.astro';
 
     let throughputChart = null;
     let latencyChart = null;
+    let jitterChart = null;
 
     function getBucketKey(timestamp: string, intervalMinutes: number): string {
       const d = new Date(timestamp);
@@ -638,8 +648,9 @@ import Layout from '../layouts/Layout.astro';
 
       const throughputCanvas = document.getElementById('throughput-chart') as HTMLCanvasElement;
       const latencyCanvas = document.getElementById('latency-chart') as HTMLCanvasElement;
+      const jitterCanvas = document.getElementById('jitter-chart') as HTMLCanvasElement;
 
-      if (!throughputCanvas || !latencyCanvas) return;
+      if (!throughputCanvas || !latencyCanvas || !jitterCanvas) return;
 
       const labels = tl.map(p => {
         const d = new Date(p.hour);
@@ -683,6 +694,7 @@ import Layout from '../layouts/Layout.astro';
 
       if (throughputChart) { throughputChart.destroy(); throughputChart = null; }
       if (latencyChart) { latencyChart.destroy(); latencyChart = null; }
+      if (jitterChart) { jitterChart.destroy(); jitterChart = null; }
 
       throughputChart = new Chart(throughputCanvas.getContext('2d'), {
         type: 'line',
@@ -732,6 +744,24 @@ import Layout from '../layouts/Layout.astro';
             data: tl.map(p => p.latencyMs),
             borderColor: '#3fb950',
             backgroundColor: 'rgba(63,185,80,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+          }]
+        },
+        options: chartDefaults
+      });
+
+      jitterChart = new Chart(jitterCanvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Jitter ms',
+            data: tl.map(p => p.jitterMs),
+            borderColor: '#bc8cff',
+            backgroundColor: 'rgba(188,140,255,0.1)',
             fill: true,
             tension: 0.3,
             pointRadius: 0,
