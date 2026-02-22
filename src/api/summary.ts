@@ -1,66 +1,57 @@
-import type { Env, SpeedtestRecord, Incident, DegradationLevel } from "../types";
+import type { Env, SpeedtestRecord, Incident, DegradationLevel, TimelinePoint } from "../types";
 import { checkRateLimit } from "../utils/ratelimit";
 import { buildCacheKey, getCached, putCache } from "../utils/cache";
 import { classifyRecord, THRESHOLDS } from "../types";
-
-function getClientIP(request: Request): string {
-  return (
-    request.headers.get("CF-Connecting-IP") ??
-    request.headers.get("X-Forwarded-For")?.split(",")[0].trim() ??
-    "unknown"
-  );
-}
-
-function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
-
-function stripPrefix(key: string, prefix: string): string {
-  if (prefix && key.startsWith(prefix)) {
-    return key.slice(prefix.length);
-  }
-  return key;
-}
-
-function filenameToTimestamp(filename: string): string {
-  let name = filename;
-  if (name.endsWith(".json")) {
-    name = name.slice(0, -5);
-  }
-  if (name.startsWith("speedtest-")) {
-    name = name.slice(10);
-  }
-  const [datePart, ...rest] = name.split("T");
-  const timePart = rest.join("T");
-  let matchCount = 0;
-  const fixedTime = timePart.replace(/-/g, () => {
-    matchCount++;
-    return matchCount <= 2 ? ":" : ".";
-  });
-  return `${datePart}T${fixedTime}`;
-}
-
-function endpointName(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-const toMbps = (bps: number) => Math.round((bps / 1_000_000) * 100) / 100;
+import { getClientIP, jsonResponse, stripPrefix, filenameToTimestamp, endpointName, toMbps } from "../utils/helpers";
 
 function percentile(arr: number[], p: number): number {
   if (arr.length === 0) return 0;
   const sorted = [...arr].sort((a, b) => a - b);
   const index = Math.ceil((p / 100) * sorted.length) - 1;
   return sorted[Math.max(0, index)];
+}
+
+function getBucketKeyUTC(timestamp: string, intervalMinutes: number): string {
+  const d = new Date(timestamp);
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth();
+  const day = d.getUTCDate();
+  const hour = d.getUTCHours();
+  const minute = d.getUTCMinutes();
+  const flooredMinute = Math.floor(minute / intervalMinutes) * intervalMinutes;
+  return new Date(Date.UTC(year, month, day, hour, flooredMinute, 0, 0)).toISOString();
+}
+
+function getIntervalMinutes(hours: number): number {
+  if (hours <= 1) return 5;
+  if (hours <= 6) return 15;
+  if (hours <= 24) return 60;
+  if (hours <= 168) return 360;
+  return 1440;
+}
+
+function buildTimeline(records: SpeedtestRecord[], hours: number): TimelinePoint[] {
+  if (records.length === 0) return [];
+
+  const interval = getIntervalMinutes(hours);
+  const groups: Record<string, SpeedtestRecord[]> = {};
+
+  for (const rec of records) {
+    const bucketKey = getBucketKeyUTC(rec.timestamp, interval);
+    if (!groups[bucketKey]) groups[bucketKey] = [];
+    groups[bucketKey].push(rec);
+  }
+
+  return Object.entries(groups)
+    .map(([hour, recs]) => ({
+      hour,
+      downloadMbps: Math.round((recs.reduce((a, b) => a + b.download, 0) / recs.length) * 100) / 100,
+      uploadMbps: Math.round((recs.reduce((a, b) => a + b.upload, 0) / recs.length) * 100) / 100,
+      latencyMs: Math.round((recs.reduce((a, b) => a + b.latency, 0) / recs.length) * 100) / 100,
+      jitterMs: Math.round((recs.reduce((a, b) => a + b.jitter, 0) / recs.length) * 100) / 100,
+      count: recs.length,
+    }))
+    .sort((a, b) => a.hour.localeCompare(b.hour));
 }
 
 function groupByHour(records: SpeedtestRecord[]): Record<string, SpeedtestRecord[]> {
@@ -76,13 +67,13 @@ function groupByHour(records: SpeedtestRecord[]): Record<string, SpeedtestRecord
   return groups;
 }
 
-function buildIncidents(records: SpeedtestRecord[]): Incident[] {
+function buildIncidents(records: SpeedtestRecord[], thresholds?: { warn: number; crit: number }): Incident[] {
   const sorted = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   const incidents: Incident[] = [];
   let current: Incident | null = null;
 
   for (const rec of sorted) {
-    const level = classifyRecord(rec);
+    const level = classifyRecord(rec, thresholds);
     if (level === "ok") {
       if (current) {
         incidents.push(current);
@@ -250,6 +241,8 @@ export async function handleSummary(
 
     console.log(`[handleSummary] Parsed ${records.length} records, ${parseErrors} parse errors`);
 
+    records.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
     if (records.length === 0) {
       console.log(`[handleSummary] No records found, returning empty response`);
       const response = jsonResponse({
@@ -338,8 +331,15 @@ export async function handleSummary(
     const successCount = records.filter((r) => r.success).length;
     const successRate = records.length > 0 ? successCount / records.length : 1.0;
 
-    const incidents = buildIncidents(records);
+    const thresholds = {
+      warn: parseFloat(env.ANOMALY_WARN_THRESHOLD) || 0.70,
+      crit: parseFloat(env.ANOMALY_CRIT_THRESHOLD) || 0.50,
+    };
+    const incidents = buildIncidents(records, thresholds);
     console.log(`[handleSummary] Built ${incidents.length} incidents`);
+
+    const timeline = buildTimeline(records, hours);
+    console.log(`[handleSummary] Built ${timeline.length} timeline points`);
 
     const response = jsonResponse({
       totalRecords: records.length,
@@ -350,6 +350,7 @@ export async function handleSummary(
       p95,
       p99,
       byEndpoint,
+      timeline,
       successRate,
       incidents,
       incidentCount: incidents.length,

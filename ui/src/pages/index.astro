@@ -448,7 +448,7 @@ import Layout from '../layouts/Layout.astro';
     interface SpeedtestRecord { timestamp: string; sessionID: string; endpoint: string; endpointName: string; success: boolean; download: number; upload: number; latency: number; jitter: number; downLoadedLatency: number; downLoadedJitter: number; upLoadedLatency: number; upLoadedJitter: number; }
     interface Incident { start: string; end: string; level: string; affectedMetrics: string[]; recordCount: number; worstDownloadMbps: number; worstUploadMbps: number; worstLatencyMs: number; worstJitterMs: number; }
     interface EndpointSummary { name: string; count: number; avg: { downloadMbps: number; uploadMbps: number; latencyMs: number; jitterMs: number } }
-    interface SummaryResponse { totalRecords: number; timeRangeHours: number; records: SpeedtestRecord[]; avg: any; p50: any; p95: any; p99: any; byEndpoint: any; successRate: number; incidents: any; incidentCount: number; }
+    interface SummaryResponse { totalRecords: number; timeRangeHours: number; records: SpeedtestRecord[]; avg: any; p50: any; p95: any; p99: any; byEndpoint: any; timeline?: TimelinePoint[]; successRate: number; incidents: any; incidentCount: number; }
 
     let selectedLimit = 100;
     let selectedEndpoint = 'all';
@@ -489,21 +489,38 @@ import Layout from '../layouts/Layout.astro';
     let throughputChart = null;
     let latencyChart = null;
 
-    function recordsToTimeline(records: SpeedtestRecord[]): TimelinePoint[] {
+    function getBucketKey(timestamp: string, intervalMinutes: number): string {
+      const d = new Date(timestamp);
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const day = d.getDate();
+      const hour = d.getHours();
+      const minute = d.getMinutes();
+      const flooredMinute = Math.floor(minute / intervalMinutes) * intervalMinutes;
+      return new Date(year, month, day, hour, flooredMinute, 0, 0).toISOString();
+    }
+
+    function getIntervalMinutes(hours: number): number {
+      if (hours <= 1) return 5;
+      if (hours <= 6) return 15;
+      if (hours <= 24) return 60;
+      if (hours <= 168) return 360;
+      return 1440;
+    }
+
+    function recordsToTimeline(records: SpeedtestRecord[], intervalMinutes?: number): TimelinePoint[] {
       if (records.length === 0) return [];
 
-      // Group by hour for timeline
-      const hourGroups: Record<string, SpeedtestRecord[]> = {};
+      const interval = intervalMinutes || getIntervalMinutes(selectedHours);
+
+      const groups: Record<string, SpeedtestRecord[]> = {};
       for (const rec of records) {
-        const date = new Date(rec.timestamp);
-        const hourKey = new Date(
-          Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours())
-        ).toISOString();
-        if (!hourGroups[hourKey]) hourGroups[hourKey] = [];
-        hourGroups[hourKey].push(rec);
+        const bucketKey = getBucketKey(rec.timestamp, interval);
+        if (!groups[bucketKey]) groups[bucketKey] = [];
+        groups[bucketKey].push(rec);
       }
 
-      return Object.entries(hourGroups)
+      return Object.entries(groups)
         .map(([hour, recs]) => ({
           hour,
           downloadMbps: Math.round((recs.reduce((a, b) => a + b.download, 0) / recs.length) * 100) / 100,
@@ -595,8 +612,9 @@ import Layout from '../layouts/Layout.astro';
       updateKpi('kpi-latency', summary.avg.latencyMs, 0, summary.p95.latencyMs);
       updateKpi('kpi-jitter', summary.avg.jitterMs, 0, summary.p95.jitterMs);
 
-      // Aggregate records to timeline for KPI sparklines
-      const timeline = recordsToTimeline(summary.records || []);
+      const timeline = (summary.timeline && summary.timeline.length > 0)
+        ? summary.timeline
+        : recordsToTimeline(summary.records || []);
 
       const sparkPath = timelineToPath(timeline, 'downloadMbps', 200, 36);
       document.getElementById('sparkline-download').setAttribute('d', sparkPath + ' L200,36 L0,36 Z');
@@ -612,8 +630,9 @@ import Layout from '../layouts/Layout.astro';
     }
 
     function renderCharts(summary: SummaryResponse) {
-      // Aggregate records to timeline with adaptive downsampling based on time range
-      const tl = recordsToTimeline(summary.records || []);
+      const tl = (summary.timeline && summary.timeline.length > 0)
+        ? summary.timeline
+        : recordsToTimeline(summary.records || []);
       if (tl.length === 0) return;
       if (typeof Chart === 'undefined') return;
 
@@ -648,11 +667,6 @@ import Layout from '../layouts/Layout.astro';
             borderColor: '#2e2e2e',
             borderWidth: 1,
           },
-          sampling: {
-            enabled: true,
-            threshold: samplingThreshold,
-            algorithm: 'min-max',
-          }
         },
         scales: {
           x: {

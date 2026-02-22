@@ -83,19 +83,27 @@ export interface Incident {
   worstJitterMs: number;
 }
 
-export function classifyRecord(r: SpeedtestRecord): DegradationLevel {
+export function classifyRecord(
+  r: SpeedtestRecord,
+  thresholds?: { warn: number; crit: number }
+): DegradationLevel {
+  const defaultThresholds = THRESHOLDS;
+  const warnThreshold = thresholds?.warn ?? 0.70;
+  const critThreshold = thresholds?.crit ?? 0.50;
+
+  const baseline = defaultThresholds.download.warn;
   if (
-    r.download < THRESHOLDS.download.crit ||
-    r.upload < THRESHOLDS.upload.crit ||
-    r.latency > THRESHOLDS.latency.crit ||
-    r.jitter > THRESHOLDS.jitter.crit
+    r.download < baseline * critThreshold ||
+    r.upload < baseline * critThreshold ||
+    r.latency > defaultThresholds.latency.crit ||
+    r.jitter > defaultThresholds.jitter.crit
   )
     return "crit";
   if (
-    r.download < THRESHOLDS.download.warn ||
-    r.upload < THRESHOLDS.upload.warn ||
-    r.latency > THRESHOLDS.latency.warn ||
-    r.jitter > THRESHOLDS.jitter.warn
+    r.download < baseline * warnThreshold ||
+    r.upload < baseline * warnThreshold ||
+    r.latency > defaultThresholds.latency.warn ||
+    r.jitter > defaultThresholds.jitter.warn
   )
     return "warn";
   return "ok";

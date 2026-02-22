@@ -2,59 +2,7 @@ import type { Env } from "../types";
 import { checkRateLimit } from "../utils/ratelimit";
 import { buildCacheKey, getCached, putCache } from "../utils/cache";
 import type { SpeedtestRecord } from "../types";
-
-function getClientIP(request: Request): string {
-  return (
-    request.headers.get("CF-Connecting-IP") ??
-    request.headers.get("X-Forwarded-For")?.split(",")[0].trim() ??
-    "unknown"
-  );
-}
-
-function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
-
-function stripPrefix(key: string, prefix: string): string {
-  if (prefix && key.startsWith(prefix)) {
-    return key.slice(prefix.length);
-  }
-  return key;
-}
-
-function filenameToTimestamp(filename: string): string {
-  let name = filename;
-  if (name.endsWith(".json")) {
-    name = name.slice(0, -5);
-  }
-  if (name.startsWith("speedtest-")) {
-    name = name.slice(10);
-  }
-  const [datePart, ...rest] = name.split("T");
-  const timePart = rest.join("T");
-  let matchCount = 0;
-  const fixedTime = timePart.replace(/-/g, () => {
-    matchCount++;
-    return matchCount <= 2 ? ":" : ".";
-  });
-  return `${datePart}T${fixedTime}`;
-}
-
-function endpointName(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-const toMbps = (bps: number) => Math.round((bps / 1_000_000) * 100) / 100;
+import { getClientIP, jsonResponse, stripPrefix, filenameToTimestamp, endpointName, toMbps } from "../utils/helpers";
 
 export async function handleResults(
   request: Request,
@@ -212,8 +160,10 @@ export async function handleResults(
 
     records.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
+    const paginatedRecords = records.slice(0, limit);
+
     const response = jsonResponse({
-      records,
+      records: paginatedRecords,
       total: objects.length,
       hasMore: listed.truncated && objects.length > limit,
       cursor: listed.truncated ? (listed as { truncated: true; cursor: string }).cursor : null,
