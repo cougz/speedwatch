@@ -614,6 +614,11 @@ import Layout from '../layouts/Layout.astro';
         strip.appendChild(cell);
       });
 
+      if (!displayRecords.length) {
+        axis.innerHTML = '<span style="color: var(--lo)">No timeline data available</span>';
+        return;
+      }
+
       const labelCount = 5;
       for (let i = 0; i <= labelCount; i++) {
         const ts = new Date(oldest + (spanMs * i) / labelCount);
@@ -631,8 +636,8 @@ import Layout from '../layouts/Layout.astro';
       const list = document.getElementById('incident-list')!;
       list.innerHTML = '';
 
-      if (!incidents.length) {
-        list.innerHTML = '<div class="no-incidents">✓ No performance incidents detected in the selected window</div>';
+      if (!incidents || !incidents.length) {
+        list.innerHTML = '<div class="no-incidents">✓ No performance incidents detected</div>';
         return;
       }
 
