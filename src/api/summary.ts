@@ -30,6 +30,9 @@ function stripPrefix(key: string, prefix: string): string {
 
 function filenameToTimestamp(filename: string): string {
   let name = filename;
+  if (name.endsWith(".json")) {
+    name = name.slice(0, -5);
+  }
   if (name.startsWith("speedtest-")) {
     name = name.slice(10);
   }
