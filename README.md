@@ -97,20 +97,13 @@ In the build configuration, set:
 | Deploy command | `npx wrangler deploy` (default, already filled) |
 
 Click **Save and Deploy**. The first build will start immediately.
+2. Redeploy (or Workers Builds will auto-deploy on next push)
 
-#### Step 3: Verify R2 Bucket Binding
+If you need to change which folder/prefix to read within the bucket:
+1. Update `R2_PREFIX` in `wrangler.jsonc` under `vars`
+2. Redeploy (or Workers Builds will auto-deploy on next push)
 
-After the first deployment:
-
-1. Go to your Worker → **Settings** → **Variables and Secrets**
-2. Verify the **R2 Buckets** section shows:
-   ```
-   Binding: RESULTS_BUCKET
-   Bucket Name: grainau-speedtest-results
-   ```
-
-**Note:** The R2 bucket must already exist and contain speedtest JSON files in the `speedtest-results/` subfolder.
-
+### Local Development
 ### Local Development
 
 To run the Worker locally (requires `wrangler dev` with real R2 bucket access):
@@ -140,9 +133,11 @@ npm run typecheck   # TypeScript type checking
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `R2_PREFIX` | `"speedtest-results/"` | Prefix in R2 bucket where speedtest files are stored |
+| `R2_PREFIX` | `"speedtest-results/"` | Prefix in R2 bucket where speedtest JSON files are stored (adjust if using subfolder or different naming) |
 | `CACHE_TTL_SECONDS` | `"60"` | Cache TTL for API responses (seconds) |
 | `MAX_RESULTS_PER_PAGE` | `"200"` | Maximum records per page in results API |
+
+**Note:** `R2_PREFIX` should match the actual folder structure in your R2 bucket. If your files are directly in the bucket root, set `R2_PREFIX` to `""`.
 
 ### Rate Limiting
 
@@ -154,13 +149,28 @@ Adjust in `wrangler.jsonc` under `ratelimits` if needed.
 
 ## R2 Bucket Data Format
 
-SpeedWatch expects JSON files in the `speedtest-results/` subfolder of your R2 bucket.
+SpeedWatch expects JSON files in your R2 bucket. The actual location depends on your `R2_PREFIX` environment variable in `wrangler.jsonc`.
 
-File naming pattern:
-- With speedtest prefix: `speedtest-results/speedtest-2026-02-21T20-48-36-141Z.json`
-- Without prefix: `speedtest-results/2026-02-21T20-48-36-141Z.json`
+### File Location
 
-Both formats are supported. The timestamp is extracted from the filename.
+If `R2_PREFIX` is set to `"speedtest-results/"`:
+- Full path: `speedtest-results/speedtest-2026-02-21T20-48-36-141Z.json`
+
+If `R2_PREFIX` is set to `""` (bucket root):
+- Full path: `speedtest-2026-02-21T20-48-36-141Z.json`
+
+### File Naming
+
+SpeedWatch supports these filename patterns (with and without the `speedtest-` prefix):
+
+| Pattern | Example | Notes |
+|--------|---------|-------|
+| `speedtest-{timestamp}.json` | `speedtest-2026-02-21T20-48-36-141Z.json` | Default pattern if your files include `speedtest-` in the name |
+| `{timestamp}.json` | `2026-02-21T20-48-36-141Z.json` | If files don't have the `speedtest-` prefix |
+
+**Note:** Update `R2_PREFIX` in `wrangler.jsonc` to match your actual file location:
+- If files are in a subfolder named `speedtest-results/`, set `R2_PREFIX: "speedtest-results/"`
+- If files are directly in bucket root, set `R2_PREFIX: ""`
 
 ### File Content Shape
 

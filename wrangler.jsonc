@@ -12,7 +12,7 @@
   },
   "r2_buckets": [
     {
-      "binding": "RESULTS_BUCKET",
+      "binding": "R2_BUCKET",
       "bucket_name": "grainau-speedtest-results"
     }
   ],

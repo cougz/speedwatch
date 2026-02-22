@@ -21,9 +21,15 @@ function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
-function keyToTimestamp(key: string): string {
-  const name = key.replace(/^speedtest-results\//, "").replace(/\.json$/, "");
-  const [datePart, ...rest] = name.split("T");
+function stripPrefix(key: string, prefix: string): string {
+  if (prefix && key.startsWith(prefix)) {
+    return key.slice(prefix.length);
+  }
+  return key;
+}
+
+function filenameToTimestamp(filename: string): string {
+  const [datePart, ...rest] = filename.split("T");
   const timePart = rest.join("T");
   const fixedTime = timePart.replace("-", ":").replace("-", ":").replace("-", ".");
   return `${datePart}T${fixedTime}`;
@@ -155,7 +161,7 @@ export async function handleSummary(
     let cursor: string | undefined = undefined;
 
     while (true) {
-      const listed = await env.RESULTS_BUCKET.list({
+      const listed = await env.R2_BUCKET.list({
         prefix: env.R2_PREFIX,
         limit: 1000,
         cursor,
@@ -165,6 +171,11 @@ export async function handleSummary(
       if (!listed.truncated) break;
     }
 
+    const objectsInWindow = allObjects.filter((obj) => {
+      const filename = stripPrefix(obj.key, env.R2_PREFIX);
+      return filenameToTimestamp(filename) >= cutoffTime;
+    });
+
     const objectsInWindow = allObjects.filter((obj) => keyToTimestamp(obj.key) >= cutoffTime);
 
     const records: SpeedtestRecord[] = [];
@@ -173,12 +184,13 @@ export async function handleSummary(
     for (let i = 0; i < objectsInWindow.length; i += batchSize) {
       const batch = objectsInWindow.slice(i, i + batchSize);
       const promises = batch.map(async (obj) => {
-        const body = await env.RESULTS_BUCKET.get(obj.key);
+        const filename = stripPrefix(obj.key, env.R2_PREFIX);
+        const body = await env.R2_BUCKET.get(obj.key);
         if (!body) return null;
         const text = await body.text();
         const data = JSON.parse(text);
         return {
-          timestamp: keyToTimestamp(obj.key),
+          timestamp: filenameToTimestamp(filename),
           sessionID: data.sessionID,
           endpoint: data.endpoint,
           endpointName: endpointName(data.endpoint),

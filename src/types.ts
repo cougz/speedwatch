@@ -1,6 +1,6 @@
 export interface Env {
   ASSETS: Fetcher;
-  RESULTS_BUCKET: R2Bucket;
+  R2_BUCKET: R2Bucket;
   RATE_LIMITER: RateLimit;
   R2_PREFIX: string;
   CACHE_TTL_SECONDS: string;

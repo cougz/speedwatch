@@ -21,9 +21,15 @@ function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
-function keyToTimestamp(key: string): string {
-  const name = key.replace(/^speedtest-results\//, "").replace(/\.json$/, "");
-  const [datePart, ...rest] = name.split("T");
+function stripPrefix(key: string, prefix: string): string {
+  if (prefix && key.startsWith(prefix)) {
+    return key.slice(prefix.length);
+  }
+  return key;
+}
+
+function filenameToTimestamp(filename: string): string {
+  const [datePart, ...rest] = filename.split("T");
   const timePart = rest.join("T");
   const fixedTime = timePart.replace("-", ":").replace("-", ":").replace("-", ".");
   return `${datePart}T${fixedTime}`;
@@ -100,7 +106,7 @@ export async function handleResults(
       listOptions.cursor = cursor;
     }
 
-    const listed = await env.RESULTS_BUCKET.list(listOptions);
+    const listed = await env.R2_BUCKET.list(listOptions);
     let objects = listed.objects;
 
     if (listed.truncated) {
@@ -108,10 +114,10 @@ export async function handleResults(
       while (nextCursor && objects.length < limit) {
         const listOpts: R2ListOptions = {
           prefix: env.R2_PREFIX,
-          cursor: nextCursor,
-          limit: 1000,
+      cursor: nextCursor,
+      limit: 1000,
         };
-        const nextList = await env.RESULTS_BUCKET.list(listOpts);
+        const nextList = await env.R2_BUCKET.list(listOpts);
         objects = objects.concat(nextList.objects);
         if (nextList.truncated) {
           nextCursor = (nextList as { truncated: true; cursor: string }).cursor;
@@ -122,52 +128,43 @@ export async function handleResults(
       }
     }
 
-    let filteredObjects = objects.slice(0, limit);
+    let filteredObjects = objects;
     if (fromTimestamp) {
-      const allFiltered = objects.filter((obj) => {
-        const ts = keyToTimestamp(obj.key);
-        return ts >= fromTimestamp;
+      filteredObjects = objects.filter((obj) => {
+        const filename = stripPrefix(obj.key, env.R2_PREFIX);
+        return filenameToTimestamp(filename) >= fromTimestamp;
       });
-      filteredObjects = allFiltered.slice(0, limit);
     }
 
     const records: SpeedtestRecord[] = [];
-    const batchSize = 50;
 
-    for (let i = 0; i < filteredObjects.length; i += batchSize) {
-      const batch = filteredObjects.slice(i, i + batchSize);
-      const promises = batch.map(async (obj) => {
-        const body = await env.RESULTS_BUCKET.get(obj.key);
-        if (!body) return null;
-        const text = await body.text();
-        const data = JSON.parse(text);
-        const name = endpointName(data.endpoint);
-        const rec: SpeedtestRecord = {
-          timestamp: keyToTimestamp(obj.key),
-          sessionID: data.sessionID,
-          endpoint: data.endpoint,
-          endpointName: name,
-          success: data.success,
-          download: toMbps(data.result?.download || 0),
-          upload: toMbps(data.result?.upload || 0),
-          latency: data.result?.latency || 0,
-          jitter: data.result?.jitter || 0,
-          downLoadedLatency: data.result?.downLoadedLatency || 0,
-          downLoadedJitter: data.result?.downLoadedJitter || 0,
-          upLoadedLatency: data.result?.upLoadedLatency || 0,
-          upLoadedJitter: data.result?.upLoadedJitter || 0,
-        };
+    for (const obj of filteredObjects) {
+      const filename = stripPrefix(obj.key, env.R2_PREFIX);
+      const body = await env.R2_BUCKET.get(obj.key);
+      if (!body) continue;
+      const text = await body.text();
+      const data = JSON.parse(text);
+      const name = endpointName(data.endpoint);
+      const rec: SpeedtestRecord = {
+        timestamp: filenameToTimestamp(filename),
+        sessionID: data.sessionID,
+        endpoint: data.endpoint,
+        endpointName: name,
+        success: data.success,
+        download: toMbps(data.result?.download || 0),
+        upload: toMbps(data.result?.upload || 0),
+        latency: data.result?.latency || 0,
+        jitter: data.result?.jitter || 0,
+        downLoadedLatency: data.result?.downLoadedLatency || 0,
+        downLoadedJitter: data.result?.downLoadedJitter || 0,
+        upLoadedLatency: data.result?.upLoadedLatency || 0,
+        upLoadedJitter: data.result?.upLoadedJitter || 0,
+      };
 
-        if (endpointFilter && rec.endpointName !== endpointFilter) {
-          return null;
-        }
-        return rec;
-      });
-
-      const results = await Promise.all(promises);
-      for (const r of results) {
-        if (r) records.push(r);
+      if (endpointFilter && rec.endpointName !== endpointFilter) {
+        continue;
       }
+      records.push(rec);
     }
 
     records.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
