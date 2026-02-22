@@ -49,12 +49,34 @@ import Layout from '../layouts/Layout.astro';
 
     main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 
-    .page-header {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 20px;
+    .hero {
+      text-align: center;
+      padding: 40px 0 32px;
     }
-    .page-title { font-size: 20px; font-weight: 600; color: var(--hi); }
-    .page-meta { font-size: 12px; color: var(--lo); font-family: var(--mono); }
+    .hero-title {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #ffffff 0%, var(--brand-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-subtitle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--md);
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      background: var(--c-green);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
 
     .kpi-grid {
       display: grid; grid-template-columns: repeat(4, 1fr);
@@ -167,6 +189,16 @@ import Layout from '../layouts/Layout.astro';
     }
     .load-more-btn:hover { background: var(--s3); color: var(--hi); }
     .load-more-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    footer {
+      margin-top: 48px;
+      padding: 24px 0 32px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--lo);
+    }
+    footer a { color: var(--brand); font-weight: 500; }
+    footer a:hover { color: var(--brand-light); }
   </style>
 
   <nav>
@@ -190,9 +222,12 @@ import Layout from '../layouts/Layout.astro';
   </nav>
 
   <main>
-    <div class="page-header">
-      <div class="page-title">Speedtest Dashboard</div>
-      <div class="page-meta" id="page-meta">Loading...</div>
+    <div class="hero">
+      <h1 class="hero-title">Speedtest Dashboard</h1>
+      <div class="hero-subtitle">
+        <span class="live-dot"></span>
+        <span id="page-meta">Loading...</span>
+      </div>
     </div>
 
     <div class="kpi-grid">
@@ -340,6 +375,11 @@ import Layout from '../layouts/Layout.astro';
       </div>
       <button class="load-more-btn" id="load-more" disabled>Load More</button>
     </div>
+
+    <footer>
+      SpeedWatch · Auto-refreshes every 60s ·
+      <a href="https://workers.cloudflare.com/" target="_blank" rel="noopener">Powered by Cloudflare Workers</a>
+    </footer>
   </main>
 
   <script>
@@ -418,12 +458,6 @@ import Layout from '../layouts/Layout.astro';
 
     let throughputChart = null;
     let latencyChart = null;
-
-    function classifyRecord(r: SpeedtestRecord): 'ok' | 'warn' | 'crit' {
-      if (r.download < THRESHOLDS.download.crit || r.upload < THRESHOLDS.upload.crit || r.latency > THRESHOLDS.latency.crit || r.jitter > THRESHOLDS.jitter.crit) return 'crit';
-      if (r.download < THRESHOLDS.download.warn || r.upload < THRESHOLDS.upload.warn || r.latency > THRESHOLDS.latency.warn || r.jitter > THRESHOLDS.jitter.warn) return 'warn';
-      return 'ok';
-    }
 
     function timelineToPath(points: TimelinePoint[], metric: keyof TimelinePoint, w: number, h: number): string {
       const values = points.map(p => Number(p[metric]));
