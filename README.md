@@ -52,7 +52,13 @@ SpeedWatch is designed to work with JSON speedtest results and is particularly w
 - **Throughput Chart** — Download (orange) and upload (blue) area charts
 - **Latency Chart** — Latency line chart
 - **Endpoint Breakdown** — Per-endpoint cards with progress bars and metric tiles
+
+![Endpoints](./endpoints.png)
+
 - **Results Table** — Paginated table with anomaly highlighting
+
+![Recents](./recents.png)
+
 - **Auto-refresh** — 60-second data refresh
 - **Time Range Pills** — 1h, 6h, 24h, 7d, All, Custom date range
 
