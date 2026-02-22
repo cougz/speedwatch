@@ -78,6 +78,13 @@ Consecutive degraded tests are grouped into incidents. A single critical test in
 
 Workers Builds automatically deploys your application on every push to the `main` branch.
 
+**Important:** All bucket configuration is now controlled via `wrangler.jsonc`:
+- **Binding name:** `R2_BUCKET` (connects to your bucket)
+- **Bucket name:** Set via `bucket_name` in `r2_buckets`
+- **File prefix:** Set via `R2_PREFIX` environment variable
+
+**No hardcoded bucket names in code.** To change buckets, update `wrangler.jsonc` only.
+
 #### Step 1: Connect GitHub Repository
 
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
