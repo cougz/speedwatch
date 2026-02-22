@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout title="SpeedWatch">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
   <style>
     :root {
       --c-upload: #58a6ff;
@@ -99,45 +100,6 @@ import Layout from '../layouts/Layout.astro';
 
     .kpi-sparkline { height: 36px; margin-top: 8px; }
 
-    .timeline-section { margin-bottom: 24px; }
-    .section-header {
-      display: flex; align-items: baseline; justify-content: space-between;
-      margin-bottom: 10px;
-    }
-    .section-title { font-size: 13px; font-weight: 600; color: var(--md); }
-    .section-meta { font-size: 11px; font-family: var(--mono); color: var(--lo); }
-
-    .timeline-strip-wrap {
-      background: var(--s1); border: 1px solid var(--s3);
-      border-radius: 12px; padding: 16px 20px; margin-bottom: 12px;
-    }
-    .timeline-strip {
-      display: flex; gap: 2px; height: 28px; align-items: stretch;
-      margin-bottom: 6px; border-radius: 4px; overflow: hidden;
-    }
-    .timeline-cell {
-      flex: 1; min-width: 3px; border-radius: 2px; cursor: pointer;
-      transition: opacity 0.15s ease, transform 0.15s ease; position: relative;
-    }
-    .timeline-cell:hover { opacity: 0.85; transform: scaleY(1.15); }
-    .cell-ok { background: #3fb950; opacity: 0.6; }
-    .cell-warn { background: #d29922; opacity: 0.85; }
-    .cell-crit { background: #f85149; opacity: 1; }
-    .cell-missing { background: var(--s3); opacity: 0.4; }
-
-    .timeline-axis {
-      display: flex; justify-content: space-between;
-      font-size: 9px; font-family: var(--mono); color: var(--lo); padding: 0 1px;
-    }
-
-    .timeline-tooltip {
-      position: fixed; background: var(--s2); border: 1px solid var(--s3);
-      border-radius: 8px; padding: 8px 12px; font-size: 11px;
-      font-family: var(--mono); color: var(--md); pointer-events: none; z-index: 200;
-      display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-      white-space: nowrap; line-height: 1.8;
-    }
-
     .incident-list {
       display: flex; flex-direction: column; gap: 8px; margin-top: 14px;
     }
@@ -189,10 +151,6 @@ import Layout from '../layouts/Layout.astro';
     .chart-legend { display: flex; gap: 12px; font-size: 11px; color: var(--lo); }
     .legend-item { display: flex; align-items: center; gap: 4px; }
     .legend-color { width: 8px; height: 8px; border-radius: 2px; }
-
-    .throughput-chart { height: 200px; position: relative; }
-    .latency-chart { height: 70px; position: relative; margin-top: 8px; }
-    .chart-svg { width: 100%; height: 100%; }
 
     .table-card {
       background: var(--s1); border: 1px solid var(--s3);
@@ -248,6 +206,10 @@ import Layout from '../layouts/Layout.astro';
       <div class="nav-pill time-pill" data-hours="6">6h</div>
       <div class="nav-pill time-pill active" data-hours="24">24h</div>
       <div class="nav-pill time-pill" data-hours="168">7d</div>
+      <div class="nav-pill time-pill" data-hours="8760">All</div>
+      <div class="nav-pill" id="custom-pill">Custom</div>
+      <input type="date" id="custom-from" style="display:none;padding:4px 8px;font-size:11px;background:var(--s2);color:var(--md);border:1px solid var(--s3);border-radius:4px;">
+      <input type="date" id="custom-to" style="display:none;padding:4px 8px;font-size:11px;background:var(--s2);color:var(--md);border:1px solid var(--s3);border-radius:4px;">
     </div>
   </nav>
 
@@ -319,14 +281,10 @@ import Layout from '../layouts/Layout.astro';
       </div>
     </div>
 
-    <section class="timeline-section">
-      <div class="section-title">Performance Timeline</div>
-      <div class="timeline-strip-wrap">
-        <div class="timeline-strip" id="timeline-strip"></div>
-        <div class="timeline-axis" id="timeline-axis"></div>
-        <div class="incident-list" id="incident-list"></div>
-      </div>
-    </section>
+    <div class="chart-card" style="margin-bottom:24px">
+      <div class="chart-title" style="margin-bottom:12px">Performance Incidents</div>
+      <div class="incident-list" id="incident-list"></div>
+    </div>
 
     <div class="chart-grid">
       <div class="chart-card">
@@ -338,7 +296,7 @@ import Layout from '../layouts/Layout.astro';
           </div>
         </div>
         <div class="throughput-chart">
-          <svg class="chart-svg" viewBox="0 0 1000 200" preserveAspectRatio="none" id="throughput-svg"></svg>
+          <canvas id="throughput-chart" height="200"></canvas>
         </div>
         <div class="chart-header" style="margin-top: 12px; margin-bottom: 8px;">
           <div class="chart-title">Latency Timeline</div>
@@ -347,9 +305,26 @@ import Layout from '../layouts/Layout.astro';
           </div>
         </div>
         <div class="latency-chart">
-          <svg class="chart-svg" viewBox="0 0 1000 70" preserveAspectRatio="none" id="latency-svg"></svg>
+          <canvas id="latency-chart" height="100"></canvas>
         </div>
       </div>
+    </div>
+
+    <div class="chart-card" style="margin-bottom:24px">
+      <div class="chart-title" style="margin-bottom:12px">Endpoint Breakdown</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:monospace">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Endpoint</th>
+            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Tests</th>
+            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Avg DL</th>
+            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Avg UL</th>
+            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Avg Latency</th>
+            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Avg Jitter</th>
+          </tr>
+        </thead>
+        <tbody id="endpoint-tbody"></tbody>
+      </table>
     </div>
 
     <div class="table-card">
@@ -379,8 +354,6 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </main>
 
-  <div class="timeline-tooltip" id="timeline-tooltip"></div>
-
   <script>
     interface TimelinePoint { hour: string; downloadMbps: number; uploadMbps: number; latencyMs: number; jitterMs: number; count: number; }
     interface SpeedtestRecord { timestamp: string; sessionID: string; endpoint: string; endpointName: string; success: boolean; download: number; upload: number; latency: number; jitter: number; downLoadedLatency: number; downLoadedJitter: number; upLoadedLatency: number; upLoadedJitter: number; }
@@ -400,19 +373,12 @@ import Layout from '../layouts/Layout.astro';
     let selectedHours = 24;
     let allRecords: SpeedtestRecord[] = [];
 
+    let throughputChart = null;
+    let latencyChart = null;
+
     function classifyRecord(r: SpeedtestRecord): 'ok' | 'warn' | 'crit' {
       if (r.download < THRESHOLDS.download.crit || r.upload < THRESHOLDS.upload.crit || r.latency > THRESHOLDS.latency.crit || r.jitter > THRESHOLDS.jitter.crit) return 'crit';
       if (r.download < THRESHOLDS.download.warn || r.upload < THRESHOLDS.upload.warn || r.latency > THRESHOLDS.latency.warn || r.jitter > THRESHOLDS.jitter.warn) return 'warn';
-      return 'ok';
-    }
-
-    function classifyTimelinePoint(p) {
-      if (p.downloadMbps < THRESHOLDS.download.crit || p.uploadMbps < THRESHOLDS.upload.crit ||
-          p.latencyMs > THRESHOLDS.latency.crit     || p.jitterMs > THRESHOLDS.jitter.crit)
-        return 'crit';
-      if (p.downloadMbps < THRESHOLDS.download.warn || p.uploadMbps < THRESHOLDS.upload.warn ||
-          p.latencyMs > THRESHOLDS.latency.warn     || p.jitterMs > THRESHOLDS.jitter.warn)
-        return 'warn';
       return 'ok';
     }
 
@@ -442,8 +408,8 @@ import Layout from '../layouts/Layout.astro';
 
         renderKpiCards(summary);
         renderCharts(summary);
-        renderTimeline(summary);
         renderIncidents(summary.incidents);
+        renderEndpoints(summary.byEndpoint);
         renderTable();
         updatePageMeta(summary);
       } catch (err) {
@@ -479,130 +445,43 @@ import Layout from '../layouts/Layout.astro';
     }
 
     function renderCharts(summary) {
-      const throughputSvg = document.getElementById('throughput-svg');
-      const latencySvg    = document.getElementById('latency-svg');
       const tl = summary.timeline || [];
-      if (tl.length === 0) return;
+      const labels = tl.map(p => new Date(p.hour).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
 
-      const maxDl  = Math.max(...tl.map(p => p.downloadMbps), 1);
-      const maxUl  = Math.max(...tl.map(p => p.uploadMbps),   1);
-      const maxLat = Math.max(...tl.map(p => p.latencyMs),    1);
-      const PAD_L  = 48; // left padding for Y axis labels
-      const PAD_B  = 20; // bottom padding for X axis labels
-      const W = 1000, H = 200, HL = 70;
-      const xStep = (W - PAD_L) / Math.max(tl.length - 1, 1);
+      const chartDefaults = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#888', font: { family: 'monospace', size: 10 } }, grid: { color: '#2e2e2e' } },
+          y: { ticks: { color: '#888', font: { family: 'monospace', size: 10 } }, grid: { color: '#2e2e2e' } }
+        }
+      };
 
-      function buildPath(metric, maxVal, chartH) {
-        return tl.map((p, i) => {
-          const x = PAD_L + i * xStep;
-          const y = (chartH - PAD_B) - (p[metric] / maxVal) * (chartH - PAD_B);
-          return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-        }).join(' ');
-      }
-
-      const dlPath  = buildPath('downloadMbps', maxDl,  H);
-      const ulPath  = buildPath('uploadMbps',   maxUl,  H);
-      const latPath = buildPath('latencyMs',    maxLat, HL);
-
-      // Y-axis labels for throughput (4 steps)
-      const yLabels = [0, 1, 2, 3].map(i => {
-        const val = Math.round((maxDl / 3) * i);
-        const y   = (H - PAD_B) - (val / maxDl) * (H - PAD_B);
-        return `<text x="${PAD_L - 4}" y="${y.toFixed(1)}" text-anchor="end" fill="#888" font-size="11" font-family="monospace" dominant-baseline="middle">${val}</text>
-                <line x1="${PAD_L}" y1="${y.toFixed(1)}" x2="${W}" y2="${y.toFixed(1)}" stroke="#2e2e2e" stroke-width="1"/>`;
-      }).join('');
-
-      // X-axis labels for throughput (6 evenly spaced)
-      const xLabelCount = Math.min(6, tl.length);
-      const xStep2 = Math.floor((tl.length - 1) / Math.max(xLabelCount - 1, 1));
-      const xLabels = Array.from({length: xLabelCount}, (_, i) => {
-        const idx = Math.min(i * xStep2, tl.length - 1);
-        const x   = PAD_L + idx * xStep;
-        const label = new Date(tl[idx].hour).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-        return `<text x="${x.toFixed(1)}" y="${H - 4}" text-anchor="middle" fill="#888" font-size="10" font-family="monospace">${label}</text>`;
-      }).join('');
-
-      // Y-axis label for latency
-      const latYLabels = [0, 1, 2].map(i => {
-        const val = Math.round((maxLat / 2) * i);
-        const y   = (HL - PAD_B) - (val / maxLat) * (HL - PAD_B);
-        return `<text x="${PAD_L - 4}" y="${y.toFixed(1)}" text-anchor="end" fill="#888" font-size="10" font-family="monospace" dominant-baseline="middle">${val}ms</text>`;
-      }).join('');
-
-      throughputSvg.innerHTML = `
-        <defs>
-          <linearGradient id="cg-dl" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style="stop-color:var(--brand);stop-opacity:0.25"/>
-            <stop offset="100%" style="stop-color:var(--brand);stop-opacity:0"/>
-          </linearGradient>
-          <linearGradient id="cg-ul" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style="stop-color:#58a6ff;stop-opacity:0.2"/>
-            <stop offset="100%" style="stop-color:#58a6ff;stop-opacity:0"/>
-          </linearGradient>
-        </defs>
-        ${yLabels}
-        <path d="${dlPath} L${(PAD_L + (tl.length-1)*xStep).toFixed(1)},${H-PAD_B} L${PAD_L},${H-PAD_B} Z" fill="url(#cg-dl)" stroke="none"/>
-        <path d="${ulPath} L${(PAD_L + (tl.length-1)*xStep).toFixed(1)},${H-PAD_B} L${PAD_L},${H-PAD_B} Z" fill="url(#cg-ul)" stroke="none"/>
-        <path d="${dlPath}" fill="none" stroke="var(--brand)" stroke-width="2"/>
-        <path d="${ulPath}" fill="none" stroke="#58a6ff" stroke-width="2"/>
-        <text x="${PAD_L - 4}" y="${H - PAD_B}" text-anchor="end" fill="#888" font-size="11" font-family="monospace" dominant-baseline="middle">0</text>
-        <text x="${W - 4}" y="${(H - PAD_B - (maxDl/maxDl)*(H-PAD_B)).toFixed(1)}" fill="var(--brand)" font-size="10" font-family="monospace">${maxDl.toFixed(0)} Mbps</text>
-        ${xLabels}
-        <line x1="${PAD_L}" y1="${H-PAD_B}" x2="${W}" y2="${H-PAD_B}" stroke="#3a3a3a" stroke-width="1"/>
-        <line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H-PAD_B}" stroke="#3a3a3a" stroke-width="1"/>
-      `;
-
-      latencySvg.innerHTML = `
-        ${latYLabels}
-        <path d="${latPath} L${(PAD_L + (tl.length-1)*xStep).toFixed(1)},${HL-PAD_B} L${PAD_L},${HL-PAD_B} Z" fill="rgba(63,185,80,0.12)" stroke="none"/>
-        <path d="${latPath}" fill="none" stroke="#3fb950" stroke-width="2"/>
-        <line x1="${PAD_L}" y1="${HL-PAD_B}" x2="${W}" y2="${HL-PAD_B}" stroke="#3a3a3a" stroke-width="1"/>
-        <line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${HL-PAD_B}" stroke="#3a3a3a" stroke-width="1"/>
-      `;
-    }
-
-    function renderTimeline(summary) {
-      const strip   = document.getElementById('timeline-strip');
-      const axis    = document.getElementById('timeline-axis');
-      const tooltip = document.getElementById('timeline-tooltip');
-      strip.innerHTML = '';
-      axis.innerHTML  = '';
-
-      const tl = summary.timeline || [];
-      if (tl.length === 0) {
-        strip.innerHTML = '<div style="color:var(--lo);font-size:11px;font-family:var(--mono);padding:6px 0">No data in time window</div>';
-        return;
-      }
-
-      tl.forEach(point => {
-        const level = classifyTimelinePoint(point);
-        const cell  = document.createElement('div');
-        cell.className = `timeline-cell cell-${level}`;
-        cell.addEventListener('mouseenter', () => {
-          tooltip.innerHTML = `
-            <strong>${new Date(point.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong> · ${point.count} test${point.count !== 1 ? 's' : ''}<br>
-            DL: ${point.downloadMbps.toFixed(1)} Mbps &nbsp; UL: ${point.uploadMbps.toFixed(1)} Mbps<br>
-            Latency: ${point.latencyMs.toFixed(1)} ms &nbsp; Jitter: ${point.jitterMs.toFixed(2)} ms
-          `;
-          tooltip.style.display = 'block';
-        });
-        cell.addEventListener('mousemove', e => {
-          tooltip.style.left = `${e.clientX + 12}px`;
-          tooltip.style.top  = `${e.clientY - 8}px`;
-        });
-        cell.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
-        strip.appendChild(cell);
+      if (throughputChart) throughputChart.destroy();
+      throughputChart = new Chart(document.getElementById('throughput-chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Download Mbps', data: tl.map(p => p.downloadMbps), borderColor: '#F48024', backgroundColor: 'rgba(244,128,36,0.1)', fill: true, tension: 0.3, pointRadius: 0 },
+            { label: 'Upload Mbps', data: tl.map(p => p.uploadMbps), borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3, pointRadius: 0 }
+          ]
+        },
+        options: { ...chartDefaults, plugins: { legend: { display: true, labels: { color: '#888' } } } }
       });
 
-      const step = Math.max(1, Math.floor(tl.length / 5));
-      for (let i = 0; i < tl.length; i += step) {
-        const span = document.createElement('span');
-        span.textContent = new Date(tl[i].hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        axis.appendChild(span);
-      }
-      const lastSpan = document.createElement('span');
-      lastSpan.textContent = new Date(tl[tl.length - 1].hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      axis.appendChild(lastSpan);
+      if (latencyChart) latencyChart.destroy();
+      latencyChart = new Chart(document.getElementById('latency-chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Latency ms', data: tl.map(p => p.latencyMs), borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', fill: true, tension: 0.3, pointRadius: 0 }
+          ]
+        },
+        options: chartDefaults
+      });
     }
 
     function renderIncidents(incidents: Incident[]) {
@@ -652,6 +531,29 @@ import Layout from '../layouts/Layout.astro';
           <div class="incident-count">${inc.recordCount} test${inc.recordCount !== 1 ? 's' : ''}</div>
         `;
         list.appendChild(card);
+      }
+    }
+
+    function renderEndpoints(byEndpoint) {
+      const tbody = document.getElementById('endpoint-tbody');
+      tbody.innerHTML = '';
+
+      if (!byEndpoint || Object.keys(byEndpoint).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--lo);text-align:center;padding:12px">No endpoint data</td></tr>';
+        return;
+      }
+
+      for (const [key, endpoint] of Object.entries(byEndpoint)) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td style="padding:6px 8px">${endpoint.name}</td>
+          <td style="padding:6px 8px">${endpoint.count}</td>
+          <td style="padding:6px 8px">${endpoint.avg.downloadMbps.toFixed(1)}</td>
+          <td style="padding:6px 8px">${endpoint.avg.uploadMbps.toFixed(1)}</td>
+          <td style="padding:6px 8px">${endpoint.avg.latencyMs.toFixed(1)}</td>
+          <td style="padding:6px 8px">${endpoint.avg.jitterMs.toFixed(2)}</td>
+        `;
+        tbody.appendChild(row);
       }
     }
 
@@ -718,11 +620,42 @@ import Layout from '../layouts/Layout.astro';
     document.querySelectorAll('.time-pill').forEach(pill => {
       pill.addEventListener('click', () => {
         document.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+        document.getElementById('custom-pill')?.classList.remove('active');
         pill.classList.add('active');
         selectedHours = parseInt(pill.dataset.hours || '24', 10);
+        document.getElementById('custom-from').style.display = 'none';
+        document.getElementById('custom-to').style.display = 'none';
         fetchData();
       });
     });
+
+    document.getElementById('custom-pill')?.addEventListener('click', () => {
+      document.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+      document.getElementById('custom-pill')?.classList.add('active');
+      const fromInput = document.getElementById('custom-from');
+      const toInput = document.getElementById('custom-to');
+      fromInput.style.display = 'inline-block';
+      toInput.style.display = 'inline-block';
+      fromInput.showPicker?.();
+    });
+
+    function applyCustomDateRange() {
+      const fromInput = document.getElementById('custom-from');
+      const toInput = document.getElementById('custom-to');
+      if (fromInput.value && toInput.value) {
+        const fromDate = new Date(fromInput.value);
+        const toDate = new Date(toInput.value);
+        const diffMs = toDate.getTime() - fromDate.getTime();
+        const hours = diffMs / (1000 * 60 * 60);
+        if (hours > 0) {
+          selectedHours = hours;
+          fetchData();
+        }
+      }
+    }
+
+    document.getElementById('custom-from')?.addEventListener('change', applyCustomDateRange);
+    document.getElementById('custom-to')?.addEventListener('change', applyCustomDateRange);
 
     document.getElementById('load-more')?.addEventListener('click', async () => {
       const filtered = selectedEndpoint === 'all'
