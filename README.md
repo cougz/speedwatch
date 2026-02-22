@@ -106,14 +106,10 @@ After the first deployment:
 2. Verify the **R2 Buckets** section shows:
    ```
    Binding: RESULTS_BUCKET
-   Bucket Name: speedtest-results
+   Bucket Name: grainau-speedtest-results
    ```
 
-**Note:** The R2 bucket must already exist. If you need to create it:
-
-```bash
-npx wrangler r2 bucket create speedtest-results
-```
+**Note:** The R2 bucket must already exist and contain speedtest JSON files in the `speedtest-results/` subfolder.
 
 ### Local Development
 
@@ -144,7 +140,7 @@ npm run typecheck   # TypeScript type checking
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `R2_PREFIX` | `"json-results/"` | Prefix in R2 bucket where speedtest files are stored |
+| `R2_PREFIX` | `"speedtest-results/"` | Prefix in R2 bucket where speedtest files are stored |
 | `CACHE_TTL_SECONDS` | `"60"` | Cache TTL for API responses (seconds) |
 | `MAX_RESULTS_PER_PAGE` | `"200"` | Maximum records per page in results API |
 
@@ -158,9 +154,13 @@ Adjust in `wrangler.jsonc` under `ratelimits` if needed.
 
 ## R2 Bucket Data Format
 
-SpeedWatch expects JSON files named: `json-results/speedtest-{timestamp}.json`
+SpeedWatch expects JSON files in the `speedtest-results/` subfolder of your R2 bucket.
 
-Example timestamp: `speedtest-2026-02-21T20-48-36-141Z.json`
+File naming pattern:
+- With speedtest prefix: `speedtest-results/speedtest-2026-02-21T20-48-36-141Z.json`
+- Without prefix: `speedtest-results/2026-02-21T20-48-36-141Z.json`
+
+Both formats are supported. The timestamp is extracted from the filename.
 
 ### File Content Shape
 
