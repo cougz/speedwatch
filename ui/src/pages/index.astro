@@ -141,34 +141,6 @@ import Layout from '../layouts/Layout.astro';
     .incident-list {
       display: flex; flex-direction: column; gap: 8px;
     }
-    .timeline-strip {
-      display: flex; gap: 2px; height: 28px; align-items: stretch;
-      margin-bottom: 6px; border-radius: 4px; overflow: hidden;
-    }
-    .timeline-cell {
-      flex: 1; min-width: 3px; border-radius: 2px; cursor: pointer;
-      transition: opacity 0.15s ease, transform 0.15s ease; position: relative;
-    }
-    .timeline-cell:hover { opacity: 0.85; transform: scaleY(1.15); }
-    .cell-ok { background: #3fb950; opacity: 0.6; }
-    .cell-warn { background: #d29922; opacity: 0.85; }
-    .cell-crit { background: #f85149; opacity: 1; }
-    .cell-missing { background: var(--s3); opacity: 0.4; }
-
-    .timeline-axis {
-      display: flex; justify-content: space-between;
-      font-size: 9px; font-family: var(--mono); color: var(--lo); padding: 0 1px;
-    }
-
-    .timeline-tooltip {
-      position: fixed; background: var(--s2); border: 1px solid var(--s3);
-      border-radius: 8px; padding: 8px 12px; font-size: 11px;
-      font-family: var(--mono); color: var(--md); pointer-events: none;
-      z-index: 200; display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-      white-space: nowrap; line-height: 1.8;
-    }
-
-    .incident-list { display: flex; flex-direction: column; gap: 8px; }
     .incident-card {
       display: flex; align-items: flex-start; gap: 12px;
       background: var(--s1); border: 1px solid var(--s3);
@@ -200,7 +172,7 @@ import Layout from '../layouts/Layout.astro';
     }
 
     .chart-grid {
-      display: grid; grid-template-columns: 2fr 1fr; gap: 14px;
+      display: grid; grid-template-columns: 1fr; gap: 14px;
       margin-bottom: 24px;
     }
 
@@ -221,31 +193,6 @@ import Layout from '../layouts/Layout.astro';
     .throughput-chart { height: 200px; position: relative; }
     .latency-chart { height: 70px; position: relative; margin-top: 8px; }
     .chart-svg { width: 100%; height: 100%; }
-
-    .endpoint-list { display: flex; flex-direction: column; gap: 10px; max-height: 270px; overflow-y: auto; }
-    .endpoint-card {
-      background: var(--s2); border: 1px solid var(--s3);
-      border-radius: 8px; padding: 12px; transition: border-color 0.2s ease;
-    }
-    .endpoint-card:hover { border-color: var(--s4); }
-    .endpoint-name {
-      font-size: 11px; font-family: var(--mono); color: var(--lo);
-      margin-bottom: 8px;
-    }
-    .endpoint-stats {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-      font-size: 11px; font-family: var(--mono); color: var(--md);
-    }
-    .endpoint-stat { text-align: center; }
-    .endpoint-stat-value { font-weight: 600; color: var(--hi); }
-    .endpoint-stat-label { font-size: 9px; color: var(--lo); }
-    .endpoint-bars { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
-    .endpoint-bar-row { display: flex; gap: 8px; font-size: 10px; color: var(--lo); }
-    .endpoint-bar {
-      height: 6px; background: var(--s3); border-radius: 3px;
-      flex: 1; position: relative; overflow: hidden;
-    }
-    .endpoint-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
 
     .table-card {
       background: var(--s1); border: 1px solid var(--s3);
@@ -297,8 +244,6 @@ import Layout from '../layouts/Layout.astro';
       SpeedWatch
     </div>
     <div class="nav-right">
-      <div class="nav-pill ep-filter active" data-ep="all">All</div>
-      <div style="width:1px;height:20px;background:var(--s3);margin:0 4px;"></div>
       <div class="nav-pill time-pill" data-hours="1">1h</div>
       <div class="nav-pill time-pill" data-hours="6">6h</div>
       <div class="nav-pill time-pill active" data-hours="24">24h</div>
@@ -379,7 +324,7 @@ import Layout from '../layouts/Layout.astro';
       <div class="timeline-strip-wrap">
         <div class="timeline-strip" id="timeline-strip"></div>
         <div class="timeline-axis" id="timeline-axis"></div>
-        <div class="incident-list" id="incident-list" style="margin-top: 14px;"></div>
+        <div id="incident-list" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
       </div>
     </section>
 
@@ -404,13 +349,6 @@ import Layout from '../layouts/Layout.astro';
         <div class="latency-chart">
           <svg class="chart-svg" viewBox="0 0 1000 70" preserveAspectRatio="none" id="latency-svg"></svg>
         </div>
-      </div>
-
-      <div class="chart-card">
-        <div class="chart-header">
-          <div class="chart-title">Endpoint Breakdown</div>
-        </div>
-        <div class="endpoint-list" id="endpoint-list"></div>
       </div>
     </div>
 
@@ -506,7 +444,6 @@ import Layout from '../layouts/Layout.astro';
         renderCharts(summary);
         renderTimeline(summary);
         renderIncidents(summary.incidents);
-        renderEndpointBreakdown(summary.byEndpoint || {});
         renderTable(allRecords);
         updatePageMeta(summary);
       } catch (err) {
@@ -541,57 +478,86 @@ import Layout from '../layouts/Layout.astro';
       document.getElementById('sparkline-jitter').setAttribute('d', sparkJitPath + ' L200,36 L0,36 Z');
     }
 
-    function renderCharts(summary: any) {
+    function renderCharts(summary) {
       const throughputSvg = document.getElementById('throughput-svg');
-      const latencySvg = document.getElementById('latency-svg');
-      
-      if (summary.timeline.length === 0) return;
+      const latencySvg    = document.getElementById('latency-svg');
+      const tl = summary.timeline || [];
+      if (tl.length === 0) return;
 
-      const maxDl = Math.max(...summary.timeline.map((p: TimelinePoint) => p.downloadMbps), 1);
-      const maxUl = Math.max(...summary.timeline.map((p: TimelinePoint) => p.uploadMbps), 1);
-      const maxLat = Math.max(...summary.timeline.map((p: TimelinePoint) => p.latencyMs), 1);
+      const maxDl  = Math.max(...tl.map(p => p.downloadMbps), 1);
+      const maxUl  = Math.max(...tl.map(p => p.uploadMbps),   1);
+      const maxLat = Math.max(...tl.map(p => p.latencyMs),    1);
+      const PAD_L  = 48; // left padding for Y axis labels
+      const PAD_B  = 20; // bottom padding for X axis labels
+      const W = 1000, H = 200, HL = 70;
+      const xStep = (W - PAD_L) / Math.max(tl.length - 1, 1);
 
-      const points = summary.timeline.length;
-      const xStep = 1000 / Math.max(points - 1, 1);
+      function buildPath(metric, maxVal, chartH) {
+        return tl.map((p, i) => {
+          const x = PAD_L + i * xStep;
+          const y = (chartH - PAD_B) - (p[metric] / maxVal) * (chartH - PAD_B);
+          return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+      }
 
-      const dlPath = summary.timeline.map((p: TimelinePoint, i: number) => {
-        const x = i * xStep;
-        const y = 200 - (p.downloadMbps / maxDl) * 200;
-        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
+      const dlPath  = buildPath('downloadMbps', maxDl,  H);
+      const ulPath  = buildPath('uploadMbps',   maxUl,  H);
+      const latPath = buildPath('latencyMs',    maxLat, HL);
 
-      const ulPath = summary.timeline.map((p: TimelinePoint, i: number) => {
-        const x = i * xStep;
-        const y = 200 - (p.uploadMbps / maxUl) * 200;
-        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
+      // Y-axis labels for throughput (4 steps)
+      const yLabels = [0, 1, 2, 3].map(i => {
+        const val = Math.round((maxDl / 3) * i);
+        const y   = (H - PAD_B) - (val / maxDl) * (H - PAD_B);
+        return `<text x="${PAD_L - 4}" y="${y.toFixed(1)}" text-anchor="end" fill="#888" font-size="11" font-family="monospace" dominant-baseline="middle">${val}</text>
+                <line x1="${PAD_L}" y1="${y.toFixed(1)}" x2="${W}" y2="${y.toFixed(1)}" stroke="#2e2e2e" stroke-width="1"/>`;
+      }).join('');
 
-      const latPath = summary.timeline.map((p: TimelinePoint, i: number) => {
-        const x = i * xStep;
-        const y = 70 - (p.latencyMs / maxLat) * 70;
-        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
+      // X-axis labels for throughput (6 evenly spaced)
+      const xLabelCount = Math.min(6, tl.length);
+      const xStep2 = Math.floor((tl.length - 1) / Math.max(xLabelCount - 1, 1));
+      const xLabels = Array.from({length: xLabelCount}, (_, i) => {
+        const idx = Math.min(i * xStep2, tl.length - 1);
+        const x   = PAD_L + idx * xStep;
+        const label = new Date(tl[idx].hour).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        return `<text x="${x.toFixed(1)}" y="${H - 4}" text-anchor="middle" fill="#888" font-size="10" font-family="monospace">${label}</text>`;
+      }).join('');
+
+      // Y-axis label for latency
+      const latYLabels = [0, 1, 2].map(i => {
+        const val = Math.round((maxLat / 2) * i);
+        const y   = (HL - PAD_B) - (val / maxLat) * (HL - PAD_B);
+        return `<text x="${PAD_L - 4}" y="${y.toFixed(1)}" text-anchor="end" fill="#888" font-size="10" font-family="monospace" dominant-baseline="middle">${val}ms</text>`;
+      }).join('');
 
       throughputSvg.innerHTML = `
         <defs>
-          <linearGradient id="chart-grad-dl" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style="stop-color:var(--brand);stop-opacity:0.2"/>
+          <linearGradient id="cg-dl" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:var(--brand);stop-opacity:0.25"/>
             <stop offset="100%" style="stop-color:var(--brand);stop-opacity:0"/>
           </linearGradient>
-          <linearGradient id="chart-grad-ul" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style="stop-color:var(--c-upload);stop-opacity:0.2"/>
-            <stop offset="100%" style="stop-color:var(--c-upload);stop-opacity:0"/>
+          <linearGradient id="cg-ul" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#58a6ff;stop-opacity:0.2"/>
+            <stop offset="100%" style="stop-color:#58a6ff;stop-opacity:0"/>
           </linearGradient>
         </defs>
-        <path d="${dlPath} L1000,200 L0,200 Z" fill="url(#chart-grad-dl)" stroke="none"/>
-        <path d="${ulPath} L1000,200 L0,200 Z" fill="url(#chart-grad-ul)" stroke="none"/>
+        ${yLabels}
+        <path d="${dlPath} L${(PAD_L + (tl.length-1)*xStep).toFixed(1)},${H-PAD_B} L${PAD_L},${H-PAD_B} Z" fill="url(#cg-dl)" stroke="none"/>
+        <path d="${ulPath} L${(PAD_L + (tl.length-1)*xStep).toFixed(1)},${H-PAD_B} L${PAD_L},${H-PAD_B} Z" fill="url(#cg-ul)" stroke="none"/>
         <path d="${dlPath}" fill="none" stroke="var(--brand)" stroke-width="2"/>
-        <path d="${ulPath}" fill="none" stroke="var(--c-upload)" stroke-width="2"/>
+        <path d="${ulPath}" fill="none" stroke="#58a6ff" stroke-width="2"/>
+        <text x="${PAD_L - 4}" y="${H - PAD_B}" text-anchor="end" fill="#888" font-size="11" font-family="monospace" dominant-baseline="middle">0</text>
+        <text x="${W - 4}" y="${(H - PAD_B - (maxDl/maxDl)*(H-PAD_B)).toFixed(1)}" fill="var(--brand)" font-size="10" font-family="monospace">${maxDl.toFixed(0)} Mbps</text>
+        ${xLabels}
+        <line x1="${PAD_L}" y1="${H-PAD_B}" x2="${W}" y2="${H-PAD_B}" stroke="#3a3a3a" stroke-width="1"/>
+        <line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H-PAD_B}" stroke="#3a3a3a" stroke-width="1"/>
       `;
 
       latencySvg.innerHTML = `
-        <path d="${latPath} L1000,70 L0,70 Z" fill="rgba(63,185,80,0.1)" stroke="none"/>
-        <path d="${latPath}" fill="none" stroke="var(--c-latency)" stroke-width="2"/>
+        ${latYLabels}
+        <path d="${latPath} L${(PAD_L + (tl.length-1)*xStep).toFixed(1)},${HL-PAD_B} L${PAD_L},${HL-PAD_B} Z" fill="rgba(63,185,80,0.12)" stroke="none"/>
+        <path d="${latPath}" fill="none" stroke="#3fb950" stroke-width="2"/>
+        <line x1="${PAD_L}" y1="${HL-PAD_B}" x2="${W}" y2="${HL-PAD_B}" stroke="#3a3a3a" stroke-width="1"/>
+        <line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${HL-PAD_B}" stroke="#3a3a3a" stroke-width="1"/>
       `;
     }
 
@@ -731,86 +697,6 @@ import Layout from '../layouts/Layout.astro';
         btn.textContent = 'Load More from Server';
       } else {
         btn.textContent = 'No More Results';
-      }
-    }
-
-    function renderEndpointPills(byEndpoint: Record<string, any>) {
-      const navRight = document.querySelector('.nav-right')!;
-      const existingPills = navRight.querySelectorAll('.ep-filter');
-      existingPills.forEach(p => p.remove());
-
-      for (const [name, data] of Object.entries(byEndpoint)) {
-        const pill = document.createElement('div');
-        pill.className = 'nav-pill ep-filter';
-        pill.dataset.ep = name;
-        pill.textContent = name;
-        navRight.appendChild(pill);
-      }
-
-      navRight.querySelectorAll('.ep-filter').forEach(pill => {
-        pill.addEventListener('click', () => {
-          navRight.querySelectorAll('.ep-filter').forEach(p => p.classList.remove('active'));
-          pill.classList.add('active');
-          selectedEndpoint = pill.dataset.ep || 'all';
-          displayedCount = 10;
-          renderTable();
-        });
-      });
-    }
-
-    function renderEndpointBreakdown(byEndpoint) {
-      const list = document.getElementById('endpoint-list');
-      list.innerHTML = '';
-      const entries = Object.values(byEndpoint);
-      if (entries.length === 0) {
-        list.innerHTML = '<div style="color:var(--lo);font-size:12px;font-family:var(--mono);padding:8px 0">No endpoint data</div>';
-        return;
-      }
-
-      const maxDl = Math.max(...entries.map(e => e.avg.downloadMbps), 1);
-      const maxUl = Math.max(...entries.map(e => e.avg.uploadMbps), 1);
-
-      for (const ep of entries) {
-        const dlPct = ((ep.avg.downloadMbps / maxDl) * 100).toFixed(0);
-        const ulPct = ((ep.avg.uploadMbps   / maxUl) * 100).toFixed(0);
-        const card = document.createElement('div');
-        card.className = 'endpoint-card';
-        card.innerHTML = `
-          <div class="endpoint-name">${ep.name}</div>
-          <div class="endpoint-stats">
-            <div class="endpoint-stat">
-              <div class="endpoint-stat-value">${ep.avg.downloadMbps.toFixed(1)}</div>
-              <div class="endpoint-stat-label">DL Mbps</div>
-            </div>
-            <div class="endpoint-stat">
-              <div class="endpoint-stat-value">${ep.avg.uploadMbps.toFixed(1)}</div>
-              <div class="endpoint-stat-label">UL Mbps</div>
-            </div>
-            <div class="endpoint-stat">
-              <div class="endpoint-stat-value">${ep.avg.latencyMs.toFixed(1)}</div>
-              <div class="endpoint-stat-label">Lat ms</div>
-            </div>
-            <div class="endpoint-stat">
-              <div class="endpoint-stat-value">${ep.count}</div>
-              <div class="endpoint-stat-label">Tests</div>
-            </div>
-          </div>
-          <div class="endpoint-bars">
-            <div class="endpoint-bar-row">
-              <span style="width:36px;flex-shrink:0">DL</span>
-              <div class="endpoint-bar">
-                <div class="endpoint-bar-fill" style="width:${dlPct}%;background:var(--brand)"></div>
-              </div>
-            </div>
-            <div class="endpoint-bar-row">
-              <span style="width:36px;flex-shrink:0">UL</span>
-              <div class="endpoint-bar">
-                <div class="endpoint-bar-fill" style="width:${ulPct}%;background:var(--c-upload)"></div>
-              </div>
-            </div>
-          </div>
-        `;
-        list.appendChild(card);
       }
     }
 
