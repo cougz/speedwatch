@@ -139,7 +139,7 @@ import Layout from '../layouts/Layout.astro';
     }
 
     .incident-list {
-      display: flex; flex-direction: column; gap: 8px; max-height: 270px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 8px;
     }
     .timeline-strip {
       display: flex; gap: 2px; height: 28px; align-items: stretch;
@@ -489,7 +489,6 @@ import Layout from '../layouts/Layout.astro';
         renderTimeline(allRecords, summary.incidents);
         renderIncidents(summary.incidents);
         renderTable(allRecords);
-        renderEndpointPills(summary.byEndpoint);
         updatePageMeta(summary);
       } catch (err) {
         console.error('Failed to fetch data:', err);
