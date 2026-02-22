@@ -266,14 +266,12 @@ import Layout from '../layouts/Layout.astro';
       </svg>
       SpeedWatch
     </div>
-    <div class="nav-right">
+      <div class="nav-right">
       <div class="nav-pill live-pill">
         <div class="live-dot"></div> Live
       </div>
-      <div class="nav-pill time-pill" data-hours="1">1h</div>
-      <div class="nav-pill time-pill" data-hours="6">6h</div>
-      <div class="nav-pill time-pill active" data-hours="24">24h</div>
-      <div class="nav-pill time-pill" data-hours="168">7d</div>
+      <div class="nav-pill count-pill" data-limit="10">10 tests</div>
+      <div class="nav-pill count-pill active" data-limit="100">100 tests</div>
       <div class="nav-pill ep-filter active" data-ep="all">All</div>
     </div>
   </nav>
@@ -430,7 +428,7 @@ import Layout from '../layouts/Layout.astro';
       jitter: { warn: 5, crit: 15 },
     };
 
-    let selectedHours = 24;
+    let selectedLimit = 100;
     let selectedEndpoint = 'all';
     let currentCursor: string | null = null;
     let allRecords: SpeedtestRecord[] = [];
@@ -454,8 +452,8 @@ import Layout from '../layouts/Layout.astro';
     async function fetchData() {
       try {
         const [summaryRes, resultsRes] = await Promise.all([
-          fetch(`/api/summary?hours=${selectedHours}`),
-          fetch(`/api/results?limit=100`)
+          fetch(`/api/summary?hours=24`),
+          fetch(`/api/results?limit=${selectedLimit}`)
         ]);
 
         const summary = await summaryRes.json();
@@ -568,11 +566,14 @@ import Layout from '../layouts/Layout.astro';
       if (!records.length) return;
 
       const sorted = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-      const oldest = new Date(sorted[0].timestamp).getTime();
-      const newest = new Date(sorted[sorted.length - 1].timestamp).getTime();
+      const maxCells = 20;
+      const displayRecords = sorted.slice(0, maxCells);
+      
+      const oldest = new Date(displayRecords[0].timestamp).getTime();
+      const newest = new Date(displayRecords[displayRecords.length - 1].timestamp).getTime();
       const spanMs = newest - oldest || 1;
 
-      sorted.forEach(rec => {
+      displayRecords.forEach(rec => {
         const level = classifyRecord(rec);
         const cell = document.createElement('div');
         cell.className = `timeline-cell cell-${level}`;
@@ -668,8 +669,11 @@ import Layout from '../layouts/Layout.astro';
       const filteredRecords = selectedEndpoint === 'all' 
         ? records 
         : records.filter(r => r.endpointName === selectedEndpoint);
+      
+      const maxRows = 10;
+      const displayRecords = filteredRecords.slice(0, maxRows);
 
-      for (const rec of filteredRecords) {
+      for (const rec of displayRecords) {
         const statusClass = !rec.success ? 'status-fail' : rec.latency > 15 ? 'status-warn' : 'status-ok';
         const statusText = !rec.success ? '✗ Fail' : rec.latency > 15 ? '⚠ Slow' : '✓ OK';
         const row = document.createElement('tr');
@@ -689,7 +693,10 @@ import Layout from '../layouts/Layout.astro';
       }
 
       const loadMoreBtn = document.getElementById('load-more')!;
-      loadMoreBtn.disabled = !currentCursor;
+      loadMoreBtn.disabled = !currentCursor || filteredRecords.length <= maxRows;
+      if (filteredRecords.length > maxRows) {
+        loadMoreBtn.textContent = `Load More (${filteredRecords.length - maxRows} remaining)`;
+      }
     }
 
     function renderEndpointPills(byEndpoint: Record<string, any>) {
@@ -720,11 +727,11 @@ import Layout from '../layouts/Layout.astro';
       meta.textContent = `${summary.totalRecords} records · ${summary.successRate >= 1 ? '100%' : (summary.successRate * 100).toFixed(0)}% success`;
     }
 
-    document.querySelectorAll('.time-pill').forEach(pill => {
+    document.querySelectorAll('.count-pill').forEach(pill => {
       pill.addEventListener('click', () => {
-        document.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.count-pill').forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
-        selectedHours = parseInt(pill.dataset.hours || '24');
+        selectedLimit = parseInt(pill.dataset.limit || '100');
         fetchData();
       });
     });
@@ -732,7 +739,7 @@ import Layout from '../layouts/Layout.astro';
     document.getElementById('load-more')?.addEventListener('click', async () => {
       if (!currentCursor) return;
       try {
-        const res = await fetch(`/api/results?limit=100&cursor=${currentCursor}`);
+        const res = await fetch(`/api/results?limit=${selectedLimit}&cursor=${currentCursor}`);
         const data = await res.json();
         allRecords = allRecords.concat(data.records);
         currentCursor = data.cursor;
