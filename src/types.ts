@@ -5,11 +5,12 @@ export interface Env {
   R2_PREFIX: string;
   CACHE_TTL_SECONDS: string;
   MAX_RESULTS_PER_PAGE: string;
-  WARN_PERCENTILE: string;
-  CRIT_PERCENTILE: string;
-  EMA_ALPHA: string;
-  OUTAGE_THRESHOLD_PCT: string;
-  CONSECUTIVE_LOW_THRESHOLD: string;
+  ANOMALY_MIN_IQR: string;
+  ANOMALY_WARN_IQR_MULTIPLIER: string;
+  ANOMALY_CRIT_IQR_MULTIPLIER: string;
+  ENDPOINT_ANOMALY_MIN_IQR: string;
+  ENDPOINT_WARN_IQR_MULTIPLIER: string;
+  ENDPOINT_CRIT_IQR_MULTIPLIER: string;
 }
 
 export interface SpeedtestRecord {

@@ -14,22 +14,6 @@ export default {
 
 function handleConfig(env: Env): Response {
   const config = {
-    WARN_PERCENTILE: env.WARN_PERCENTILE,
-    CRIT_PERCENTILE: env.CRIT_PERCENTILE,
-    EMA_ALPHA: env.EMA_ALPHA,
-    OUTAGE_THRESHOLD_PCT: env.OUTAGE_THRESHOLD_PCT,
-    CONSECUTIVE_LOW_THRESHOLD: env.CONSECUTIVE_LOW_THRESHOLD,
-  };
-  return new Response(JSON.stringify(config), {
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
-
-function handleConfig(env: Env): Response {
-  const config = {
     ANOMALY_MIN_IQR: env.ANOMALY_MIN_IQR,
     ANOMALY_WARN_IQR_MULTIPLIER: env.ANOMALY_WARN_IQR_MULTIPLIER,
     ANOMALY_CRIT_IQR_MULTIPLIER: env.ANOMALY_CRIT_IQR_MULTIPLIER,
