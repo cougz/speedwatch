@@ -89,7 +89,37 @@ Workers Builds automatically deploys your application on every push to the `main
 5. Select the `speedwatch` repository
 6. Click **Begin setup**
 
-#### Step 2: Configure Build Settings
+#### Step 2: Configure Bindings & Variables
+
+After deployment, configure the required bindings and variables in Cloudflare Dashboard:
+
+**1. R2 Bucket Binding:**
+   - Go to your Worker → **Settings** → **Bindings** → **R2 Buckets**
+   - Click **Add binding**
+   - Variable name: `R2_BUCKET`
+   - Select your existing R2 bucket (or create a new one)
+   - Click **Save and Deploy**
+
+**2. Rate Limiting Binding:**
+   - Go to your Worker → **Settings** → **Bindings** → **Rate Limits**
+   - Click **Add binding**
+   - Variable name: `RATE_LIMITER`
+   - Namespace ID: Enter a unique ID (e.g., `1001`)
+   - Limit: `60` requests
+   - Period: `60` seconds
+   - Click **Save and Deploy**
+
+**3. Environment Variables:**
+   - Go to your Worker → **Settings** → **Variables and Secrets**
+   - Add the following variables:
+     - `R2_PREFIX`: `speedtest-results/` (or your actual folder path)
+     - `CACHE_TTL_SECONDS`: `60`
+     - `MAX_RESULTS_PER_PAGE`: `200`
+   - Click **Save and Deploy**
+
+**Important:** All bindings and variables are managed in Cloudflare Dashboard only. Do NOT edit `wrangler.jsonc` for these configurations.
+
+#### Step 3: Configure Build Settings
 
 In the build configuration, set:
 
@@ -98,35 +128,7 @@ In the build configuration, set:
 | Build command | `npm install && npm run build` |
 | Deploy command | `npx wrangler deploy` (default, already filled) |
 
-**Important:** Update `bucket_name` in Cloudflare Dashboard → **Settings** → **Bindings** → **R2 Buckets**. This is the correct way to change buckets. Do NOT manually edit `wrangler.jsonc`.
-
 Click **Save and Deploy**. The first build will start immediately.
-
-#### Step 3: Verify R2 Bucket Binding (Automatic)
-
-After the first deployment:
-
-1. Go to your Worker → **Settings** → **Bindings** → **R2 Buckets**
-2. You will see a binding named `R2_BUCKET` automatically created
-3. This binding connects to your Worker and points to `bucket_name: grainau-speedtest-results`
-
-**No manual configuration required.** The binding is managed by the Cloudflare Dashboard.
-
-#### Step 4: Configure `R2_PREFIX` (Manual)
-
-After deployment, you may need to set `R2_PREFIX` in the Dashboard to match your actual folder structure:
-
-1. Go to your Worker → **Settings** → **Variables**
-2. Add a new variable:
-   - Name: `R2_PREFIX`
-   - Value: `speedtest-results/` (for your subfolder) or `""` (for bucket root)
-3. Click **Save and Deploy**
-
-**Note:** If you change variables in the Dashboard, Workers Builds will redeploy automatically.
-
-If you need to change which folder/prefix to read within the bucket:
-1. Update `R2_PREFIX` in `wrangler.jsonc` under `vars`
-2. Redeploy (or Workers Builds will auto-deploy on next push)
 
 ### Local Development
 ### Local Development
@@ -154,39 +156,31 @@ npm run typecheck   # TypeScript type checking
 
 ## Configuration
 
-### Environment Variables (`wrangler.jsonc`)
+All bindings and variables are configured in **Cloudflare Dashboard** → **Settings** for your Worker.
+
+### Bindings
+
+| Binding | Type | Description |
+|---------|------|-------------|
+| `R2_BUCKET` | R2 Bucket | Your R2 bucket containing speedtest JSON files |
+| `RATE_LIMITER` | Rate Limit | API rate limiting (namespace_id, limit, period) |
+
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| \`R2_PREFIX\` | \`"speedtest-results/"\` | Folder/prefix in R2 bucket where speedtest JSON files are stored (update to match your actual folder structure) |
-| \`CACHE_TTL_SECONDS\` | \`"60"\` | Cache TTL for API responses (seconds) |
-| \`MAX_RESULTS_PER_PAGE\` | \`"200"\` | Maximum records per page in results API |
+| `R2_PREFIX` | `"speedtest-results/"` | Folder/prefix in R2 bucket where speedtest JSON files are stored |
+| `CACHE_TTL_SECONDS` | `"60"` | Cache TTL for API responses (seconds) |
+| `MAX_RESULTS_PER_PAGE` | `"200"` | Maximum records per page in results API |
 
-### R2 Bucket Binding
+**Important:** The `R2_PREFIX` must match your actual folder structure in R2 bucket:
 
-The \`R2_BUCKET\` binding connects the Worker to your actual R2 bucket. The binding name is configured in \`wrangler.jsonc\`:
-
-\`\`\`jsonc
-"r2_buckets": [
-  {
-    "binding": "R2_BUCKET",
-    "bucket_name": "grainau-speedtest-results"
-  }
-]\`\`\`
-
-**To use a different bucket:**
-
-1. Update \`bucket_name\` in \`wrangler.jsonc\` under \`r2_buckets\`
-2. Commit and push (or let Workers Builds auto-deploy)
-
-**Important:** SpeedWatch does **not** automatically detect your bucket structure. The \`R2_PREFIX\` environment variable must be manually configured to match the actual folder structure in your R2 bucket:
-
-| Your Bucket Structure | \`R2_PREFIX\` Value |
+| Your Bucket Structure | `R2_PREFIX` Value |
 |----------------------|-------------------|
-| Files in subfolder \`speedtest-results/\` | \`"speedtest-results/"\` |
-| Files in subfolder \`json-results/\` | \`"json-results/"\` |
-| Files in subfolder \`results/\` | \`"results/"\` |
-| Files directly in bucket root | \`""\` (empty quotes) |
+| Files in subfolder `speedtest-results/` | `"speedtest-results/"` |
+| Files in subfolder `json-results/` | `"json-results/"` |
+| Files in subfolder `results/` | `"results/"` |
+| Files directly in bucket root | `""` (empty quotes) |
 ## R2 Bucket Data Format
 
 SpeedWatch expects JSON files in your R2 bucket. The actual file location is determined by the `R2_PREFIX` environment variable in `wrangler.jsonc`.
