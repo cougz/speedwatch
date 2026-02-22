@@ -13,7 +13,8 @@
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",
-      "bucket_name": "YOUR_BUCKET_NAME"
+      "bucket_name": "grainau-speedtest-results",
+      "jurisdiction": "eu"
     }
   ],
   "ratelimits": [

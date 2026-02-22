@@ -89,37 +89,7 @@ Workers Builds automatically deploys your application on every push to the `main
 5. Select the `speedwatch` repository
 6. Click **Begin setup**
 
-#### Step 2: Configure Bindings & Variables
-
-After deployment, configure the required bindings and variables in Cloudflare Dashboard:
-
-**1. R2 Bucket Binding:**
-   - Go to your Worker → **Settings** → **Bindings** → **R2 Buckets**
-   - Click **Add binding**
-   - Variable name: `R2_BUCKET`
-   - Select your existing R2 bucket (or create a new one)
-   - Click **Save and Deploy**
-
-**2. Rate Limiting Binding:**
-   - Go to your Worker → **Settings** → **Bindings** → **Rate Limits**
-   - Click **Add binding**
-   - Variable name: `RATE_LIMITER`
-   - Namespace ID: Enter a unique ID (e.g., `1001`)
-   - Limit: `60` requests
-   - Period: `60` seconds
-   - Click **Save and Deploy**
-
-**3. Environment Variables:**
-   - Go to your Worker → **Settings** → **Variables and Secrets**
-   - Add the following variables:
-     - `R2_PREFIX`: `speedtest-results/` (or your actual folder path)
-     - `CACHE_TTL_SECONDS`: `60`
-     - `MAX_RESULTS_PER_PAGE`: `200`
-   - Click **Save and Deploy**
-
-**Important:** All bindings and variables are managed in Cloudflare Dashboard only. Do NOT edit `wrangler.jsonc` for these configurations.
-
-#### Step 3: Configure Build Settings
+#### Step 2: Configure Build Settings
 
 In the build configuration, set:
 
@@ -129,6 +99,8 @@ In the build configuration, set:
 | Deploy command | `npx wrangler deploy` (default, already filled) |
 
 Click **Save and Deploy**. The first build will start immediately.
+
+**Note:** All required bindings and environment variables are already configured in `wrangler.jsonc`. No additional Dashboard configuration is needed unless you want to customize them.
 
 ### Local Development
 ### Local Development
@@ -156,24 +128,24 @@ npm run typecheck   # TypeScript type checking
 
 ## Configuration
 
-All bindings and variables are configured in **Cloudflare Dashboard** → **Settings** for your Worker.
+All bindings and environment variables are pre-configured in `wrangler.jsonc`:
 
 ### Bindings
 
-| Binding | Type | Required | Description |
-|---------|------|-----------|-------------|
-| `R2_BUCKET` | R2 Bucket | ✅ Yes | Your R2 bucket containing speedtest JSON files. Change `bucket_name` in Dashboard → Bindings. |
-| `RATE_LIMITER` | Rate Limit | ⚠️ Optional | API rate limiting (namespace_id, limit, period). Configure in Dashboard → Bindings. Without this, rate limiting is disabled. |
+| Binding | Type | Value |
+|---------|------|--------|
+| `R2_BUCKET` | R2 Bucket | `grainau-speedtest-results` (EU jurisdiction) |
+| `RATE_LIMITER` | Rate Limit | 60 requests per 60 seconds |
 
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|-----------|-------------|
-| `R2_PREFIX` | ✅ Yes | Folder/prefix in R2 bucket where speedtest JSON files are stored. Configure in Dashboard → Variables. |
-| `CACHE_TTL_SECONDS` | ⚠️ Optional | Cache TTL for API responses (seconds). Configure in Dashboard → Variables. Defaults to 60s if not set. |
-| `MAX_RESULTS_PER_PAGE` | ⚠️ Optional | Maximum records per page in results API. Configure in Dashboard → Variables. Defaults to 200 if not set. |
+| Variable | Value |
+|----------|--------|
+| `R2_PREFIX` | `speedtest-results/` |
+| `CACHE_TTL_SECONDS` | `60` |
+| `MAX_RESULTS_PER_PAGE` | `200` |
 
-**Important:** Bindings and variables are configured in Cloudflare Dashboard → Settings. Workers Builds uses placeholders in `wrangler.jsonc` to create initial bindings/variables on first deployment. After that, configure real values in Dashboard.
+**To customize:** Edit `wrangler.jsonc` and commit changes to trigger redeployment.
 
 **Important:** The `R2_PREFIX` must match your actual folder structure in R2 bucket:
 
