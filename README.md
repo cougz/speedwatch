@@ -162,16 +162,18 @@ All bindings and variables are configured in **Cloudflare Dashboard** → **Sett
 
 | Binding | Type | Required | Description |
 |---------|------|-----------|-------------|
-| `R2_BUCKET` | R2 Bucket | ✅ Yes | Your R2 bucket containing speedtest JSON files |
+| `R2_BUCKET` | R2 Bucket | ✅ Yes | Your R2 bucket containing speedtest JSON files. Set real bucket name in Dashboard. |
 | `RATE_LIMITER` | Rate Limit | ⚠️ Optional | API rate limiting (namespace_id, limit, period). Without this, rate limiting is disabled. |
 
 ### Environment Variables
 
-| Variable | Default | Required | Description |
-|----------|---------|-----------|-------------|
-| `R2_PREFIX` | `"speedtest-results/"` | ✅ Yes | Folder/prefix in R2 bucket where speedtest JSON files are stored |
-| `CACHE_TTL_SECONDS` | `"60"` | ⚠️ Optional | Cache TTL for API responses (seconds). Defaults to 60s if not set. |
-| `MAX_RESULTS_PER_PAGE` | `"200"` | ⚠️ Optional | Maximum records per page in results API. Defaults to 200 if not set. |
+| Variable | Required | Description |
+|----------|-----------|-------------|
+| `R2_PREFIX` | ✅ Yes | Folder/prefix in R2 bucket where speedtest JSON files are stored. Configure in Dashboard to match your actual structure (e.g., `"speedtest-results/"` or `""` for bucket root). |
+| `CACHE_TTL_SECONDS` | ⚠️ Optional | Cache TTL for API responses (seconds). Configure in Dashboard. Defaults to 60s if not set. |
+| `MAX_RESULTS_PER_PAGE` | ⚠️ Optional | Maximum records per page in results API. Configure in Dashboard. Defaults to 200 if not set. |
+
+**Important:** All bindings and variables are configured in Cloudflare Dashboard → Settings. The `wrangler.jsonc` file does NOT contain placeholders - these must be set manually in Dashboard after deployment.
 
 **Important:** The `R2_PREFIX` must match your actual folder structure in R2 bucket:
 

@@ -31,7 +31,11 @@ function stripPrefix(key: string, prefix: string): string {
 function filenameToTimestamp(filename: string): string {
   const [datePart, ...rest] = filename.split("T");
   const timePart = rest.join("T");
-  const fixedTime = timePart.replace("-", ":").replace("-", ":").replace("-", ".");
+  let matchCount = 0;
+  const fixedTime = timePart.replace(/-/g, () => {
+    matchCount++;
+    return matchCount <= 2 ? ":" : ".";
+  });
   return `${datePart}T${fixedTime}`;
 }
 
