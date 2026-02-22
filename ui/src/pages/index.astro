@@ -383,6 +383,43 @@ import Layout from '../layouts/Layout.astro';
       }).join(' ');
     }
 
+    function calculateMetricStats(records: SpeedtestRecord[]): {
+      download: { median: number; q1: number; q3: number },
+      upload: { median: number; q1: number; q3: number },
+      latency: { median: number; q1: number; q3: number },
+      jitter: { median: number; q1: number; q3: number }
+    } {
+      const WINDOW_SIZE = 100;
+      const recentRecords = records.slice(0, WINDOW_SIZE);
+
+      const calcStats = (values: number[]) => {
+        const sorted = [...values].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        const q1 = sorted[Math.floor(sorted.length * 0.25)];
+        const q3 = sorted[Math.floor(sorted.length * 0.75)];
+        return { median, q1, q3 };
+      };
+
+      return {
+        download: calcStats(recentRecords.map(r => r.download)),
+        upload: calcStats(recentRecords.map(r => r.upload)),
+        latency: calcStats(recentRecords.map(r => r.latency)),
+        jitter: calcStats(recentRecords.map(r => r.jitter))
+      };
+    }
+
+    function isAnomaly(value: number, stats: { median: number; q1: number; q3: number }, lowerIsBad: boolean = false): boolean {
+      const iqr = stats.q3 - stats.q1;
+      const lowerBound = stats.median - (iqr * 2);
+      const upperBound = stats.median + (iqr * 2);
+
+      if (lowerIsBad) {
+        return value < lowerBound || value < stats.q1;
+      } else {
+        return value > upperBound || value > stats.q3;
+      }
+    }
+
     async function fetchData() {
       const meta = document.getElementById('page-meta');
       if (meta) meta.textContent = 'Loading...';
@@ -697,16 +734,23 @@ import Layout from '../layouts/Layout.astro';
         ? allRecords
         : allRecords.filter(r => r.endpointName === selectedEndpoint);
 
+      const stats = calculateMetricStats(filtered);
+
       const slice = filtered.slice(0, displayedCount);
       for (const rec of slice) {
-        const dlColor = rec.download < THRESHOLDS.download.crit ? '#f85149' : rec.download < THRESHOLDS.download.warn ? '#d29922' : 'var(--brand)';
-        const dlBg = rec.download < THRESHOLDS.download.crit ? 'rgba(248,81,73,0.15)' : rec.download < THRESHOLDS.download.warn ? 'rgba(210,153,34,0.15)' : 'transparent';
-        const ulColor = rec.upload < THRESHOLDS.upload.crit ? '#f85149' : rec.upload < THRESHOLDS.upload.warn ? '#d29922' : '#58a6ff';
-        const ulBg = rec.upload < THRESHOLDS.upload.crit ? 'rgba(248,81,73,0.15)' : rec.upload < THRESHOLDS.upload.warn ? 'rgba(210,153,34,0.15)' : 'transparent';
-        const latColor = rec.latency > THRESHOLDS.latency.crit ? '#f85149' : rec.latency > THRESHOLDS.latency.warn ? '#d29922' : '#3fb950';
-        const latBg = rec.latency > THRESHOLDS.latency.crit ? 'rgba(248,81,73,0.15)' : rec.latency > THRESHOLDS.latency.warn ? 'rgba(210,153,34,0.15)' : 'transparent';
-        const jitColor = rec.jitter > THRESHOLDS.jitter.crit ? '#f85149' : rec.jitter > THRESHOLDS.jitter.warn ? '#d29922' : '#bc8cff';
-        const jitBg = rec.jitter > THRESHOLDS.jitter.crit ? 'rgba(248,81,73,0.15)' : rec.jitter > THRESHOLDS.jitter.warn ? 'rgba(210,153,34,0.15)' : 'transparent';
+        const dlAnom = isAnomaly(rec.download, stats.download, true);
+        const ulAnom = isAnomaly(rec.upload, stats.upload, true);
+        const latAnom = isAnomaly(rec.latency, stats.latency);
+        const jitAnom = isAnomaly(rec.jitter, stats.jitter);
+
+        const dlColor = dlAnom ? '#f85149' : 'var(--brand)';
+        const dlBg = dlAnom ? 'rgba(248,81,73,0.15)' : 'transparent';
+        const ulColor = ulAnom ? '#f85149' : '#58a6ff';
+        const ulBg = ulAnom ? 'rgba(248,81,73,0.15)' : 'transparent';
+        const latColor = latAnom ? '#f85149' : '#3fb950';
+        const latBg = latAnom ? 'rgba(248,81,73,0.15)' : 'transparent';
+        const jitColor = jitAnom ? '#f85149' : '#bc8cff';
+        const jitBg = jitAnom ? 'rgba(248,81,73,0.15)' : 'transparent';
 
         const row = document.createElement('tr');
         row.style.cssText = `border-bottom: 1px solid var(--s3); transition: background 0.15s; ${!rec.success ? 'border-left: 3px solid #f85149;' : ''}`;
