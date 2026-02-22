@@ -104,28 +104,22 @@ import Layout from '../layouts/Layout.astro';
       display: flex; flex-direction: column; gap: 8px; margin-top: 14px;
     }
     .incident-card {
-      display: flex; align-items: flex-start; gap: 12px;
-      background: var(--s1); border: 1px solid var(--s3);
-      border-radius: 10px; padding: 12px 16px;
+      background: var(--s1);
+      border:1px solid var(--s3);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 8px;
       transition: border-color 0.2s ease;
     }
     .incident-card:hover { border-color: var(--s4); }
     .incident-card.level-warn { border-left: 3px solid #d29922; }
     .incident-card.level-crit { border-left: 3px solid #f85149; }
-    .incident-icon { font-size: 16px; line-height: 1; flex-shrink: 0; padding-top: 1px; }
-    .incident-body { flex: 1; min-width: 0; }
-    .incident-time { font-size: 11px; font-family: var(--mono); color: var(--lo); margin-bottom: 3px; }
-    .incident-desc { font-size: 13px; font-weight: 500; color: var(--hi); }
     .incident-metrics { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
     .incident-metric {
       font-size: 11px; font-family: var(--mono); padding: 2px 8px;
       border-radius: 6px; background: var(--s2); color: var(--md);
     }
     .incident-metric.affected { color: #f85149; background: rgba(248,81,73,0.1); }
-    .incident-count {
-      font-size: 11px; font-family: var(--mono); color: var(--lo);
-      flex-shrink: 0; white-space: nowrap; align-self: center;
-    }
     .no-incidents {
       display: flex; align-items: center; gap: 10px;
       background: var(--s1); border: 1px solid var(--s3);
@@ -282,8 +276,22 @@ import Layout from '../layouts/Layout.astro';
     </div>
 
     <div class="chart-card" style="margin-bottom:24px">
-      <div class="chart-title" style="margin-bottom:12px">Performance Incidents</div>
-      <div class="incident-list" id="incident-list"></div>
+      <div class="chart-header" style="cursor:pointer; user-select:none" id="incidents-header">
+        <div class="chart-title">
+          Performance Incidents
+          <span id="incident-badge" style="
+            margin-left:8px; font-size:10px; font-weight:600;
+            padding:2px 7px; border-radius:10px;
+            background:rgba(248,81,73,0.15); color:#f85149;
+            font-family:var(--mono); vertical-align:middle;
+          ">0</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px">
+          <div id="incidents-toggle-label" style="font-size:11px; color:var(--lo); font-family:var(--mono)">Show</div>
+          <div id="incidents-chevron" style="color:var(--lo); font-size:14px; transition:transform 0.2s">▼</div>
+        </div>
+      </div>
+      <div id="incident-list" style="display:none; margin-top:12px"></div>
     </div>
 
     <div class="chart-grid">
@@ -454,11 +462,6 @@ import Layout from '../layouts/Layout.astro';
     }
 
     function renderCharts(summary) {
-      if (typeof Chart === 'undefined') {
-        console.warn('Chart.js not loaded yet');
-        return;
-      }
-
       const tl = summary.timeline || [];
       if (tl.length === 0) return;
 
@@ -561,54 +564,82 @@ import Layout from '../layouts/Layout.astro';
       });
     }
 
+    let incidentsExpanded = false;
+
     function renderIncidents(incidents: Incident[]) {
-      const list = document.getElementById('incident-list')!;
+      const list = document.getElementById('incident-list');
+      const badge = document.getElementById('incident-badge');
+      const chevron = document.getElementById('incidents-chevron');
+      const toggleLabel = document.getElementById('incidents-toggle-label');
+      if (!list) return;
+
+      if (badge) {
+        badge.textContent = String(incidents?.length || 0);
+        badge.style.background = incidents?.length ? 'rgba(248,81,73,0.15)' : 'rgba(63,185,80,0.15)';
+        badge.style.color = incidents?.length ? '#f85149' : '#3fb950';
+      }
+
       list.innerHTML = '';
 
       if (!incidents || !incidents.length) {
         list.innerHTML = '<div class="no-incidents">✓ No performance incidents detected</div>';
-        return;
+      } else {
+        for (const inc of incidents) {
+          const start = new Date(inc.start);
+          const end = new Date(inc.end);
+          const durationMs = end.getTime() - start.getTime();
+          const durationStr = durationMs < 60_000
+            ? `${Math.round(durationMs / 1000)}s`
+            : `${Math.round(durationMs / 60_000)}m`;
+          const isMulti = inc.start !== inc.end;
+          const timeStr = isMulti
+            ? `${start.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} – ${end.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}, ${start.toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'})}`
+            : start.toLocaleString([], {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'});
+
+          const metrics = [
+            { label: 'Download', value: `${inc.worstDownloadMbps.toFixed(1)} Mbps`, affected: inc.affectedMetrics.includes('download') },
+            { label: 'Upload',   value: `${inc.worstUploadMbps.toFixed(1)} Mbps`,   affected: inc.affectedMetrics.includes('upload') },
+            { label: 'Latency', value: `${inc.worstLatencyMs.toFixed(1)} ms`,      affected: inc.affectedMetrics.includes('latency') },
+            { label: 'Jitter',   value: `${inc.worstJitterMs.toFixed(2)} ms`,       affected: inc.affectedMetrics.includes('jitter') },
+          ];
+
+          const metricTags = metrics.map(m =>
+            `<span class="incident-metric${m.affected ? ' affected' : ''}" style="display:inline-flex;flex-direction:column;gap:2px;min-width:80px">
+              <span style="font-size:9px;text-transform:uppercase;letter-spacing:0.06em;opacity:0.65;line-height:1">${m.label}</span>
+              <span style="font-weight:600;font-size:12px">${m.value}</span>
+            </span>`
+          ).join('');
+
+          const levelLabel = inc.level === 'crit' ? 'Critical degradation' : 'Performance warning';
+          const levelColor = inc.level === 'crit' ? '#f85149' : '#d29922';
+          const affectedStr = inc.affectedMetrics
+            .map(m => m.charAt(0).toUpperCase() + m.slice(1))
+            .join(', ');
+
+          const card = document.createElement('div');
+          card.className = `incident-card level-${inc.level}`;
+          card.innerHTML = `
+            <div class="incident-body" style="width:100%">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:8px">
+                    <div style="display:flex; align-items:center; gap:8px">
+                      <span style="font-size:13px; font-weight:600; color:${levelColor}">${levelLabel}</span>
+                      <span style="font-size:11px; color:var(--lo); font-family:var(--mono)">— ${affectedStr}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:12px">
+                      <span style="font-size:11px; color:var(--lo); font-family:var(--mono)">${inc.recordCount} test${inc.recordCount !== 1 ? 's' : ''}${isMulti ? ` · ${durationStr}` : ''}</span>
+                    </div>
+                  </div>
+                  <div style="font-size:11px; color:var(--lo); font-family:var(--mono); margin-bottom:10px">${timeStr}</div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap">${metricTags}</div>
+                </div>
+          `;
+          list.appendChild(card);
+        }
       }
 
-      for (const inc of incidents) {
-        const start = new Date(inc.start);
-        const end = new Date(inc.end);
-        const durationMs = end.getTime() - start.getTime();
-        const durationStr = durationMs < 60_000 ? `${Math.round(durationMs / 1000)}s` : `${Math.round(durationMs / 60_000)}m`;
-
-        const isMulti = inc.start !== inc.end;
-        const timeStr = isMulti
-          ? `${start.toLocaleTimeString()} – ${end.toLocaleTimeString()}, ${start.toLocaleDateString()}`
-          : start.toLocaleString();
-
-        const metricTags = ['download', 'upload', 'latency', 'jitter'].map(m => {
-          const isAffected = inc.affectedMetrics.includes(m);
-          let valueStr = '';
-          if (m === 'download') valueStr = `DL ${inc.worstDownloadMbps.toFixed(1)}M`;
-          if (m === 'upload') valueStr = `UL ${inc.worstUploadMbps.toFixed(1)}M`;
-          if (m === 'latency') valueStr = `lat ${inc.worstLatencyMs.toFixed(1)}ms`;
-          if (m === 'jitter') valueStr = `jit ${inc.worstJitterMs.toFixed(2)}ms`;
-          return `<span class="incident-metric${isAffected ? ' affected' : ''}">${valueStr}</span>`;
-        }).join('');
-
-        const icon = inc.level === 'crit' ? '🔴' : '🟡';
-        const desc = inc.level === 'crit'
-          ? `Critical degradation — ${inc.affectedMetrics.join(', ')}`
-          : `Performance warning — ${inc.affectedMetrics.join(', ')}`;
-
-        const card = document.createElement('div');
-        card.className = `incident-card level-${inc.level}`;
-        card.innerHTML = `
-          <div class="incident-icon">${icon}</div>
-          <div class="incident-body">
-            <div class="incident-time">${timeStr}${isMulti ? ` · ${durationStr}` : ''}</div>
-            <div class="incident-desc">${desc}</div>
-            <div class="incident-metrics">${metricTags}</div>
-          </div>
-          <div class="incident-count">${inc.recordCount} test${inc.recordCount !== 1 ? 's' : ''}</div>
-        `;
-        list.appendChild(card);
-      }
+      if (chevron) chevron.style.transform = incidentsExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+      if (toggleLabel) toggleLabel.textContent = incidentsExpanded ? 'Hide' : 'Show';
+      list.style.display = incidentsExpanded ? 'block' : 'none';
     }
 
     function renderEndpoints(byEndpoint: Record<string, EndpointSummary>) {
@@ -740,6 +771,16 @@ import Layout from '../layouts/Layout.astro';
     document.getElementById('custom-from')?.addEventListener('change', applyCustomDateRange);
     document.getElementById('custom-to')?.addEventListener('change', applyCustomDateRange);
 
+    document.getElementById('incidents-header')?.addEventListener('click', () => {
+      incidentsExpanded = !incidentsExpanded;
+      const list = document.getElementById('incident-list');
+      const chevron = document.getElementById('incidents-chevron');
+      const toggleLabel = document.getElementById('incidents-toggle-label');
+      if (list) list.style.display = incidentsExpanded ? 'block' : 'none';
+      if (chevron) chevron.style.transform = incidentsExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+      if (toggleLabel) toggleLabel.textContent = incidentsExpanded ? 'Hide' : 'Show';
+    });
+
     document.getElementById('load-more')?.addEventListener('click', async () => {
       const filtered = selectedEndpoint === 'all'
         ? allRecords
@@ -768,7 +809,15 @@ import Layout from '../layouts/Layout.astro';
       }
     });
 
-    setInterval(fetchData, 60000);
-    fetchData();
+    function init() {
+      if (typeof Chart === 'undefined') {
+        setTimeout(init, 100);
+        return;
+      }
+      setInterval(fetchData, 60000);
+      fetchData();
+    }
+
+    init();
   </script>
 </Layout>
