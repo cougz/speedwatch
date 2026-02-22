@@ -29,6 +29,12 @@ R2 Bucket
    - Adapts to each user's actual connection baseline naturally
 5. **Dashboard**: Renders KPIs, charts, incidents, endpoint breakdown, and results table
 
+## Compatible Data Sources
+
+SpeedWatch is designed to work with JSON speedtest results and is particularly well-suited for data from:
+
+- **[netzbremse-measurement](https://github.com/AKVorrat/netzbremse-measurement/)** — A comprehensive network speed measurement tool that produces compatible JSON results. Simply upload the JSON output files to your R2 bucket to visualize them in the dashboard.
+
 ## Features
 
 ### API Endpoints
