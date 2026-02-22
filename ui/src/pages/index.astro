@@ -13,64 +13,74 @@ import Layout from '../layouts/Layout.astro';
       --c-green: #3fb950;
     }
 
-    nav {
+    main { padding: 0 32px; max-width: 1400px; margin: 0 auto; }
+
+    .options-row {
       display: flex; align-items: center; justify-content: center;
-      padding: 0 32px; height: 56px;
-      background: rgba(13,13,13,0.85); backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--s3);
-      position: sticky; top: 0; z-index: 100;
+      gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
     }
 
-    .nav-right { display: flex; align-items: center; gap: 10px; }
-
-    .nav-pill {
-      padding: 4px 12px; font-size: 11px; font-weight: 500;
-      border-radius: 20px; background: var(--s2); color: var(--md);
+    .pill {
+      display: flex; align-items: center; gap: 4px;
+      padding: 5px 12px; border-radius: 20px;
+      border: 1px solid var(--s3); background: var(--s2);
+      color: var(--md); font-size: 12px; font-weight: 500;
       cursor: pointer; transition: all 0.15s ease;
-      border: 1px solid var(--s3);
+      user-select: none;
     }
-    .nav-pill:hover { background: var(--s3); color: var(--hi); }
-    .nav-pill.active { background: var(--brand-glow); border-color: var(--brand); color: var(--brand-light); }
+    .pill:hover { border-color: var(--brand); color: var(--brand); }
+    .pill.active { border-color: var(--brand); background: var(--brand-glow); color: var(--brand-light); }
 
-    .live-pill { display: flex; align-items: center; gap: 6px; }
-    .live-dot {
-      width: 6px; height: 6px; background: var(--c-green);
-      border-radius: 50%; animation: pulse 2s ease-in-out infinite;
+    .divider {
+      width: 100%; max-width: 960px; margin: 0 auto 24px;
+      height: 1px; background: var(--s3); border: none;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.9); }
-    }
-
-    main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 
     .hero {
       text-align: center;
-      padding: 40px 0 32px;
+      padding: 80px 0 40px;
     }
     .hero-title {
-      font-size: 2rem;
+      font-size: 2.8rem;
       font-weight: 700;
-      line-height: 1.2;
-      margin-bottom: 12px;
+      line-height: 1.15;
+      margin-bottom: 16px;
       background: linear-gradient(135deg, #ffffff 0%, var(--brand-light) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
     .hero-subtitle {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      font-size: 13px;
+      font-size: 1rem;
       color: var(--md);
+      line-height: 1.6;
+      max-width: 480px;
+      margin: 0 auto;
     }
     .live-dot {
       width: 8px; height: 8px;
       background: var(--c-green);
       border-radius: 50%;
       animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.9); }
+    }
+    .powered-by {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.85em;
+      color: var(--lo);
+    }
+    .cf-workers-icon {
+      color: var(--brand);
+      vertical-align: text-bottom;
+    }
+    .powered-by a {
+      color: var(--brand);
+      font-weight: 500;
     }
 
     .kpi-grid {
@@ -185,38 +195,70 @@ import Layout from '../layouts/Layout.astro';
     .load-more-btn:hover { background: var(--s3); color: var(--hi); }
     .load-more-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    @media (max-width: 600px) {
+      .hero { padding: 56px 0 32px; }
+      .hero-title { font-size: 2rem; }
+    }
+
     footer {
-      margin-top: 48px;
+      margin-top: auto;
       padding: 24px 0 32px;
       text-align: center;
+      color: var(--md);
       font-size: 12px;
-      color: var(--lo);
     }
-    footer a { color: var(--brand); font-weight: 500; }
-    footer a:hover { color: var(--brand-light); }
+    footer a { color: var(--md); }
+    footer a:hover { color: var(--brand); }
+    footer code {
+      background: var(--s2);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+    .footer-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      vertical-align: middle;
+    }
+    .footer-github svg {
+      width: 14px;
+      height: 14px;
+      vertical-align: middle;
+    }
   </style>
-
-  <nav>
-    <div class="nav-right">
-      <div class="nav-pill time-pill" data-hours="1">1h</div>
-      <div class="nav-pill time-pill" data-hours="6">6h</div>
-      <div class="nav-pill time-pill active" data-hours="24">24h</div>
-      <div class="nav-pill time-pill" data-hours="168">7d</div>
-      <div class="nav-pill time-pill" data-hours="8760">All</div>
-      <div class="nav-pill" id="custom-pill">Custom</div>
-      <input type="date" id="custom-from" style="padding:4px 8px;font-size:11px;background:var(--s2);color:var(--lo);border:1px solid var(--s3);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
-      <input type="date" id="custom-to" style="padding:4px 8px;font-size:11px;background:var(--s2);color:var(--lo);border:1px solid var(--s3);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
-    </div>
-  </nav>
 
   <main>
     <div class="hero">
       <h1 class="hero-title">Welcome to SpeedWatch</h1>
-      <div class="hero-subtitle">
+      <p class="hero-subtitle">
+        <span class="powered-by">
+          Powered by
+          <svg viewBox="0 0 50 50" width="18" height="18" fill="currentColor" aria-hidden="true" class="cf-workers-icon">
+            <path d="m18.63 37.418-9.645-12.9 9.592-12.533-1.852-2.527L5.917 23.595l-.015 1.808 10.86 14.542z"></path>
+            <path d="M21.997 6.503h-3.712l13.387 18.3-13.072 17.7h3.735L35.4 24.81z"></path>
+            <path d="M29.175 6.503h-3.758l13.598 18.082-13.598 17.918h3.765l12.908-17.01v-1.808z"></path>
+          </svg>
+          <a href="https://workers.cloudflare.com/" target="_blank" rel="noopener">Cloudflare Workers</a>
+        </span>
+        <br>
         <span class="live-dot"></span>
         <span id="page-meta">Loading...</span>
-      </div>
+      </p>
     </div>
+
+    <div class="options-row">
+      <div class="pill time-pill" data-hours="1">1h</div>
+      <div class="pill time-pill" data-hours="6">6h</div>
+      <div class="pill time-pill active" data-hours="24">24h</div>
+      <div class="pill time-pill" data-hours="168">7d</div>
+      <div class="pill time-pill" data-hours="8760">All</div>
+      <div class="pill" id="custom-pill">Custom</div>
+      <input type="date" id="custom-from" style="padding:4px 8px;font-size:11px;background:var(--s2);color:var(--lo);border:1px solid var(--s3);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
+      <input type="date" id="custom-to" style="padding:4px 8px;font-size:11px;background:var(--s2);color:var(--lo);border:1px solid var(--s3);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
+    </div>
+
+    <hr class="divider" />
 
     <div class="kpi-grid">
       <div class="kpi-card" style="--card-accent: var(--brand)">
@@ -365,8 +407,21 @@ import Layout from '../layouts/Layout.astro';
     </div>
 
     <footer>
-      SpeedWatch · Auto-refreshes every 60s ·
-      <a href="https://workers.cloudflare.com/" target="_blank" rel="noopener">Powered by Cloudflare Workers</a>
+      <p>
+        SpeedWatch &nbsp;·&nbsp;
+        <a href="/llms.txt">llms.txt</a>
+        &nbsp;·&nbsp;
+        API: <code>/api/summary</code>
+        &nbsp;·&nbsp;
+        API: <code>/api/results</code>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/cougz/speedwatch" target="_blank" rel="noopener" class="footer-github" aria-label="GitHub repository">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          GitHub
+        </a>
+      </p>
     </footer>
   </main>
 
