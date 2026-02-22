@@ -6,6 +6,8 @@ Real-time Cloudflare speedtest monitoring dashboard powered by R2 object storage
 
 SpeedWatch reads JSON speedtest result files from an R2 bucket and displays them through a REST API consumed by an interactive Astro UI.
 
+![Dashboard](./dashboard.png)
+
 ```
 Cloudflare Worker (speedwatch)
          │
