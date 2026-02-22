@@ -139,7 +139,7 @@ import Layout from '../layouts/Layout.astro';
     }
 
     .incident-list {
-      display: flex; flex-direction: column; gap: 8px;
+      display: flex; flex-direction: column; gap: 8px; margin-top: 14px;
     }
     .incident-card {
       display: flex; align-items: flex-start; gap: 12px;
@@ -324,7 +324,7 @@ import Layout from '../layouts/Layout.astro';
       <div class="timeline-strip-wrap">
         <div class="timeline-strip" id="timeline-strip"></div>
         <div class="timeline-axis" id="timeline-axis"></div>
-        <div id="incident-list" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
+        <div class="incident-list" id="incident-list"></div>
       </div>
     </section>
 
@@ -444,7 +444,7 @@ import Layout from '../layouts/Layout.astro';
         renderCharts(summary);
         renderTimeline(summary);
         renderIncidents(summary.incidents);
-        renderTable(allRecords);
+        renderTable();
         updatePageMeta(summary);
       } catch (err) {
         console.error('Failed to fetch data:', err);
