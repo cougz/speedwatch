@@ -22,7 +22,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 function keyToTimestamp(key: string): string {
-  const name = key.replace(/^json-results\/speedtest-/, "").replace(/\.json$/, "");
+  const name = key.replace(/^speedtest-results\//, "").replace(/\.json$/, "");
   const [datePart, ...rest] = name.split("T");
   const timePart = rest.join("T");
   const fixedTime = timePart.replace("-", ":").replace("-", ":").replace("-", ".");

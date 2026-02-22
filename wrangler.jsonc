@@ -13,7 +13,7 @@
   "r2_buckets": [
     {
       "binding": "RESULTS_BUCKET",
-      "bucket_name": "speedtest-results"
+      "bucket_name": "grainau-speedtest-results"
     }
   ],
   "ratelimits": [
@@ -24,7 +24,7 @@
     }
   ],
   "vars": {
-    "R2_PREFIX": "json-results/",
+    "R2_PREFIX": "speedtest-results/",
     "CACHE_TTL_SECONDS": "60",
     "MAX_RESULTS_PER_PAGE": "200"
   }
