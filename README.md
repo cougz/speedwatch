@@ -49,8 +49,15 @@ SpeedWatch is designed to work with JSON speedtest results and is particularly w
 
 - **KPI Cards** — Average download, upload, latency, jitter with sparklines and p95
 - **Incidents Panel** — Automatic degradation detection (warn/crit) with affected metrics
+
+![Performance Incidents](./performance-incidents.png)
+
 - **Throughput Chart** — Download (orange) and upload (blue) area charts
 - **Latency Chart** — Latency line chart
+- **Jitter Chart** — Jitter line chart
+
+![Timelines](./timelines.png)
+
 - **Endpoint Breakdown** — Per-endpoint cards with progress bars and metric tiles
 
 ![Endpoints](./endpoints.png)
