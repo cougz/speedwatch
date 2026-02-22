@@ -410,10 +410,10 @@ import Layout from '../layouts/Layout.astro';
 
     function isAnomaly(value: number, stats: { median: number; q1: number; q3: number }, lowerIsBad: boolean = false): 'ok' | 'warn' | 'crit' {
       const iqr = stats.q3 - stats.q1;
-      const warnLower = stats.median - (iqr * 1.5);
-      const warnUpper = stats.median + (iqr * 1.5);
-      const critLower = stats.median - (iqr * 2.5);
-      const critUpper = stats.median + (iqr * 2.5);
+      const warnLower = stats.median - (iqr * 3);
+      const warnUpper = stats.median + (iqr * 3);
+      const critLower = stats.median - (iqr * 5);
+      const critUpper = stats.median + (iqr * 5);
 
       if (lowerIsBad) {
         if (value < critLower || value < stats.q1) return 'crit';
