@@ -98,7 +98,7 @@ In the build configuration, set:
 | Build command | `npm install && npm run build` |
 | Deploy command | `npx wrangler deploy` (default, already filled) |
 
-**Important:** Do NOT manually edit `wrangler.jsonc`. The Cloudflare Dashboard controls all deployment configuration. Changes made directly to `wrangler.jsonc` will be overwritten by the Dashboard.
+**Important:** Update `bucket_name` in Cloudflare Dashboard → **Settings** → **Bindings** → **R2 Buckets**. This is the correct way to change buckets. Do NOT manually edit `wrangler.jsonc`.
 
 Click **Save and Deploy**. The first build will start immediately.
 
