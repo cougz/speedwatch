@@ -54,6 +54,9 @@ export async function handleResults(
   const url = new URL(request.url);
   const clientIP = getClientIP(request);
 
+  console.log(`[handleResults] Request from ${clientIP}, URL: ${url.pathname}`);
+  console.log(`[handleResults] R2_PREFIX: "${env.R2_PREFIX}"`);
+
   const rateLimitResult = await checkRateLimit(env, clientIP);
   if (!rateLimitResult.allowed) {
     const retryAfter = rateLimitResult.retryAfter || 60;
@@ -80,6 +83,8 @@ export async function handleResults(
   const fromTimestamp = params.get("from") || undefined;
   const noCache = params.get("no-cache") === "true";
 
+  console.log(`[handleResults] Query params: limit=${limit}, cursor=${cursor}, endpoint=${endpointFilter}`);
+
   const cacheParams = new URLSearchParams();
   cacheParams.set("path", "/api/results");
   if (limit) cacheParams.set("limit", String(limit));
@@ -96,6 +101,7 @@ export async function handleResults(
         headers: new Headers(cached.headers),
       });
       cachedResponse.headers.set("X-Cache", "HIT");
+      console.log(`[handleResults] Cache HIT`);
       return cachedResponse;
     }
   }
@@ -106,7 +112,10 @@ export async function handleResults(
       listOptions.cursor = cursor;
     }
 
+    console.log(`[handleResults] Listing R2 objects with prefix: "${env.R2_PREFIX}"`);
     const listed = await env.R2_BUCKET.list(listOptions);
+    console.log(`[handleResults] Listed ${listed.objects.length} objects, truncated: ${listed.truncated}`);
+    console.log(`[handleResults] First 5 keys:`, listed.objects.slice(0, 5).map(o => o.key));
     let objects = listed.objects;
 
     if (listed.truncated) {
@@ -178,13 +187,14 @@ export async function handleResults(
 
     if (!noCache) {
       const cacheTtl = parseInt(env.CACHE_TTL_SECONDS, 10);
+      console.log(`[handleResults] Caching response with TTL: ${cacheTtl}s`);
       putCache(cacheKey, response.clone(), cacheTtl, ctx);
     }
 
     response.headers.set("X-Cache", "MISS");
     return response;
   } catch (err) {
-    console.error("Error in handleResults:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    console.error("[handleResults] Error:", err);
+    return jsonResponse({ error: "Internal server error", message: String(err) }, 500);
   }
 }

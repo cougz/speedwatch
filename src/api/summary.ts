@@ -125,6 +125,10 @@ export async function handleSummary(
   const url = new URL(request.url);
   const clientIP = getClientIP(request);
 
+  console.log(`[handleSummary] Request from ${clientIP}`);
+  console.log(`[handleSummary] R2_PREFIX: "${env.R2_PREFIX}"`);
+  console.log(`[handleSummary] CACHE_TTL_SECONDS: "${env.CACHE_TTL_SECONDS}"`);
+
   const rateLimitResult = await checkRateLimit(env, clientIP);
   if (!rateLimitResult.allowed) {
     return jsonResponse(
@@ -136,6 +140,8 @@ export async function handleSummary(
   const params = new URLSearchParams(url.search);
   const hours = Math.min(parseInt(params.get("hours") || "24", 10), 720);
   const noCache = params.get("no-cache") === "true";
+
+  console.log(`[handleSummary] Query params: hours=${hours}, noCache=${noCache}`);
 
   const cacheParams = new URLSearchParams();
   cacheParams.set("path", "/api/summary");
@@ -150,58 +156,73 @@ export async function handleSummary(
         headers: new Headers(cached.headers),
       });
       cachedResponse.headers.set("X-Cache", "HIT");
+      console.log(`[handleSummary] Cache HIT`);
       return cachedResponse;
     }
   }
 
   try {
     const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    console.log(`[handleSummary] cutoffTime: ${cutoffTime}`);
 
     let allObjects: R2Object[] = [];
     let cursor: string | undefined = undefined;
+    let iterations = 0;
 
-    while (true) {
+    while (iterations < 100) {
       const listed = await env.R2_BUCKET.list({
         prefix: env.R2_PREFIX,
         limit: 1000,
         cursor,
       });
+      console.log(`[handleSummary] List iteration ${iterations}: ${listed.objects.length} objects, truncated: ${listed.truncated}`);
       allObjects = allObjects.concat(listed.objects);
       cursor = listed.truncated ? (listed as { truncated: true; cursor: string }).cursor : undefined;
       if (!listed.truncated) break;
+      iterations++;
     }
+    console.log(`[handleSummary] Total objects fetched: ${allObjects.length}`);
 
     const objectsInWindow = allObjects.filter((obj) => {
       const filename = stripPrefix(obj.key, env.R2_PREFIX);
       return filenameToTimestamp(filename) >= cutoffTime;
     });
 
+    console.log(`[handleSummary] Objects in time window: ${objectsInWindow.length}`);
+
     const records: SpeedtestRecord[] = [];
     const batchSize = 50;
+    let parseErrors = 0;
 
     for (let i = 0; i < objectsInWindow.length; i += batchSize) {
       const batch = objectsInWindow.slice(i, i + batchSize);
       const promises = batch.map(async (obj) => {
         const filename = stripPrefix(obj.key, env.R2_PREFIX);
-        const body = await env.R2_BUCKET.get(obj.key);
-        if (!body) return null;
-        const text = await body.text();
-        const data = JSON.parse(text);
-        return {
-          timestamp: filenameToTimestamp(filename),
-          sessionID: data.sessionID,
-          endpoint: data.endpoint,
-          endpointName: endpointName(data.endpoint),
-          success: data.success,
-          download: toMbps(data.result?.download || 0),
-          upload: toMbps(data.result?.upload || 0),
-          latency: data.result?.latency || 0,
-          jitter: data.result?.jitter || 0,
-          downLoadedLatency: data.result?.downLoadedLatency || 0,
-          downLoadedJitter: data.result?.downLoadedJitter || 0,
-          upLoadedLatency: data.result?.upLoadedLatency || 0,
-          upLoadedJitter: data.result?.upLoadedJitter || 0,
-        } as SpeedtestRecord;
+        try {
+          const body = await env.R2_BUCKET.get(obj.key);
+          if (!body) return null;
+          const text = await body.text();
+          const data = JSON.parse(text);
+          return {
+            timestamp: filenameToTimestamp(filename),
+            sessionID: data.sessionID,
+            endpoint: data.endpoint,
+            endpointName: endpointName(data.endpoint),
+            success: data.success,
+            download: toMbps(data.result?.download || 0),
+            upload: toMbps(data.result?.upload || 0),
+            latency: data.result?.latency || 0,
+            jitter: data.result?.jitter || 0,
+            downLoadedLatency: data.result?.downLoadedLatency || 0,
+            downLoadedJitter: data.result?.downLoadedJitter || 0,
+            upLoadedLatency: data.result?.upLoadedLatency || 0,
+            upLoadedJitter: data.result?.upLoadedJitter || 0,
+          } as SpeedtestRecord;
+        } catch (e) {
+          console.error(`[handleSummary] Error parsing ${obj.key}:`, e);
+          parseErrors++;
+          return null;
+        }
       });
 
       const results = await Promise.all(promises);
@@ -209,6 +230,8 @@ export async function handleSummary(
         if (r) records.push(r);
       }
     }
+
+    console.log(`[handleSummary] Parsed ${records.length} records, ${parseErrors} parse errors`);
 
     if (records.length === 0) {
       const response = jsonResponse({
@@ -324,13 +347,14 @@ export async function handleSummary(
 
     if (!noCache) {
       const cacheTtl = parseInt(env.CACHE_TTL_SECONDS, 10);
+      console.log(`[handleSummary] Caching response with TTL: ${cacheTtl}s`);
       putCache(cacheKey, response.clone(), cacheTtl, ctx);
     }
 
     response.headers.set("X-Cache", "MISS");
     return response;
   } catch (err) {
-    console.error("Error in handleSummary:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    console.error("[handleSummary] Error:", err);
+    return jsonResponse({ error: "Internal server error", message: String(err) }, 500);
   }
 }
