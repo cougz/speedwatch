@@ -78,12 +78,7 @@ Consecutive degraded tests are grouped into incidents. A single critical test in
 
 Workers Builds automatically deploys your application on every push to the `main` branch.
 
-**Important:** All bucket configuration is now controlled via `wrangler.jsonc`:
-- **Binding name:** `R2_BUCKET` (connects to your bucket)
-- **Bucket name:** Set via `bucket_name` in `r2_buckets`
-- **File prefix:** Set via `R2_PREFIX` environment variable
-
-**No hardcoded bucket names in code.** To change buckets, update `wrangler.jsonc` only.
+**This is the recommended deployment method** - no manual wrangler commands needed.
 
 #### Step 1: Connect GitHub Repository
 
@@ -103,8 +98,31 @@ In the build configuration, set:
 | Build command | `npm install && npm run build` |
 | Deploy command | `npx wrangler deploy` (default, already filled) |
 
+**Important:** Do NOT manually edit `wrangler.jsonc`. The Cloudflare Dashboard controls all deployment configuration. Changes made directly to `wrangler.jsonc` will be overwritten by the Dashboard.
+
 Click **Save and Deploy**. The first build will start immediately.
-2. Redeploy (or Workers Builds will auto-deploy on next push)
+
+#### Step 3: Verify R2 Bucket Binding (Automatic)
+
+After the first deployment:
+
+1. Go to your Worker → **Settings** → **Bindings** → **R2 Buckets**
+2. You will see a binding named `R2_BUCKET` automatically created
+3. This binding connects to your Worker and points to `bucket_name: grainau-speedtest-results`
+
+**No manual configuration required.** The binding is managed by the Cloudflare Dashboard.
+
+#### Step 4: Configure `R2_PREFIX` (Manual)
+
+After deployment, you may need to set `R2_PREFIX` in the Dashboard to match your actual folder structure:
+
+1. Go to your Worker → **Settings** → **Variables**
+2. Add a new variable:
+   - Name: `R2_PREFIX`
+   - Value: `speedtest-results/` (for your subfolder) or `""` (for bucket root)
+3. Click **Save and Deploy**
+
+**Note:** If you change variables in the Dashboard, Workers Builds will redeploy automatically.
 
 If you need to change which folder/prefix to read within the bucket:
 1. Update `R2_PREFIX` in `wrangler.jsonc` under `vars`
