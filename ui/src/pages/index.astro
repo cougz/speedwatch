@@ -625,9 +625,6 @@ import Layout from '../layouts/Layout.astro';
     }
 
     function renderEndpoints(byEndpoint: Record<string, EndpointSummary>) {
-      const container = document.getElementById('endpoint-tbody');
-      if (!container) return;
-
       const wrapper = document.getElementById('endpoint-cards');
       if (!wrapper) return;
       wrapper.innerHTML = '';
