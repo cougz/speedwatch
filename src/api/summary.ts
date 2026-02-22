@@ -3,6 +3,8 @@ import { checkRateLimit } from "../utils/ratelimit";
 import { buildCacheKey, getCached, putCache } from "../utils/cache";
 import { classifyRecord, THRESHOLDS } from "../types";
 
+const toMbps = (bps: number) => Math.round((bps / 1_000_000) * 100) / 100;
+
 function getClientIP(request: Request): string {
   return (
     request.headers.get("CF-Connecting-IP") ??
@@ -81,13 +83,67 @@ function buildIncidents(records: SpeedtestRecord[]): Incident[] {
   const incidents: Incident[] = [];
   let current: Incident | null = null;
 
+  const emaAlpha = parseFloat(env.EMA_ALPHA || '0.2');
+  const outageThresholdPct = parseFloat(env.OUTAGE_THRESHOLD_PCT || '0.7');
+  const consecutiveLowThreshold = parseFloat(env.CONSECUTIVE_LOW_THRESHOLD || '3');
+
   for (const rec of sorted) {
-    const level = classifyRecord(rec);
-    if (level === "ok") {
+    const dlEma = calculateEMA([...records].filter(r => r.download).map(r => r.download), emaAlpha);
+    const dlEmaCurrent = calculateEMA([...records].filter(r => r.download).slice(0, sorted.indexOf(rec) + 1).map(r => r.download), emaAlpha);
+    const ulEma = calculateEMA([...records].filter(r => r.upload).map(r => r.upload), emaAlpha);
+    const ulEmaCurrent = calculateEMA([...records].filter(r => r.upload).slice(0, sorted.indexOf(rec) + 1).map(r => r.upload), emaAlpha);
+    const latEma = calculateEMA([...records].filter(r => r.latency).map(r => r.latency), emaAlpha);
+    const latEmaCurrent = calculateEMA([...records].filter(r => r.latency).slice(0, sorted.indexOf(rec) + 1).map(r => r.latency), emaAlpha);
+    const jitEma = calculateEMA([...records].filter(r => r.jitter).map(r => r.jitter), emaAlpha);
+    const jitEmaCurrent = calculateEMA([...records].filter(r => r.jitter).slice(0, sorted.indexOf(rec) + 1).map(r => r.jitter), emaAlpha);
+
+    const dlLow = rec.download < dlEmaCurrent * (1 - outageThresholdPct);
+    const ulLow = rec.upload < ulEmaCurrent * (1 - outageThresholdPct);
+    const latHigh = rec.latency > latEmaCurrent * (1 + outageThresholdPct);
+    const jitHigh = rec.jitter > jitEmaCurrent * (1 + outageThresholdPct);
+
+    if (dlLow || ulLow || latHigh || jitHigh) {
+      const metrics: string[] = [];
+      if (dlLow) metrics.push("download");
+      if (ulLow) metrics.push("upload");
+      if (latHigh) metrics.push("latency");
+      if (jitHigh) metrics.push("jitter");
+
+      if (!current) {
+        current = {
+          start: rec.timestamp,
+          end: rec.timestamp,
+          level: 'warn',
+          affectedMetrics: metrics,
+          recordCount: 1,
+          worstDownloadMbps: rec.download,
+          worstUploadMbps: rec.upload,
+          worstLatencyMs: rec.latency,
+          worstJitterMs: rec.jitter,
+        };
+      } else {
+        current.end = rec.timestamp;
+        current.recordCount++;
+
+        if (current.level === 'crit') current.level = 'crit';
+        for (const m of metrics) {
+          if (!current.affectedMetrics.includes(m)) current.affectedMetrics.push(m);
+        }
+        current.worstDownloadMbps = Math.min(current.worstDownloadMbps, rec.download);
+        current.worstUploadMbps = Math.min(current.worstUploadMbps, rec.upload);
+        current.worstLatencyMs = Math.max(current.worstLatencyMs, rec.latency);
+        current.worstJitterMs = Math.max(current.worstJitterMs, rec.jitter);
+      }
+    } else {
       if (current) {
         incidents.push(current);
         current = null;
       }
+    }
+  }
+
+  return incidents.reverse();
+}
       continue;
     }
 
