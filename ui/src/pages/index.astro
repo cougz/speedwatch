@@ -732,7 +732,6 @@ import Layout from '../layouts/Layout.astro';
         card.style.cssText = `
           background: var(--s2);
           border: 1px solid var(--s3);
-          border-left: ${dlAnom || ulAnom || latAnom || jitAnom ? '3px solid #f85149' : 'none'};
           border-radius: 10px;
           padding: 14px 16px;
           margin-bottom: 10px;
@@ -743,7 +742,7 @@ import Layout from '../layouts/Layout.astro';
             <div style="font-size:11px; color:var(--lo); font-family:var(--mono)">${ep.count} test${ep.count !== 1 ? 's' : ''}</div>
           </div>
           <div style="height:3px; background:var(--s3); border-radius:2px; margin-bottom:12px; overflow:hidden">
-            <div style="height:100%; width:${barPct}%; background:${dlColor}; border-radius:2px; transition:width 0.4s ease"></div>
+            <div style="height:100%; width:${barPct}%; background:var(--brand); border-radius:2px; transition:width 0.4s ease"></div>
           </div>
           <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px">
             <div style="background:${dlBg}; border:1px solid ${dlAnom ? '#f85149' : 'var(--s3)'}; border-radius:8px; padding:8px 10px">
