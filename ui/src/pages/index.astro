@@ -298,6 +298,11 @@ import Layout from '../layouts/Layout.astro';
     </div>
     <div class="nav-right">
       <div class="nav-pill ep-filter active" data-ep="all">All</div>
+      <div style="width:1px;height:20px;background:var(--s3);margin:0 4px;"></div>
+      <div class="nav-pill time-pill" data-hours="1">1h</div>
+      <div class="nav-pill time-pill" data-hours="6">6h</div>
+      <div class="nav-pill time-pill active" data-hours="24">24h</div>
+      <div class="nav-pill time-pill" data-hours="168">7d</div>
     </div>
   </nav>
 
@@ -374,8 +379,8 @@ import Layout from '../layouts/Layout.astro';
       <div class="timeline-strip-wrap">
         <div class="timeline-strip" id="timeline-strip"></div>
         <div class="timeline-axis" id="timeline-axis"></div>
+        <div class="incident-list" id="incident-list" style="margin-top: 14px;"></div>
       </div>
-      <div class="incident-list" id="incident-list"></div>
     </section>
 
     <div class="chart-grid">
@@ -454,6 +459,7 @@ import Layout from '../layouts/Layout.astro';
     let selectedEndpoint = 'all';
     let serverCursor: string | null = null;
     let displayedCount = 10;
+    let selectedHours = 24;
     let allRecords: SpeedtestRecord[] = [];
 
     function classifyRecord(r: SpeedtestRecord): 'ok' | 'warn' | 'crit' {
@@ -485,7 +491,7 @@ import Layout from '../layouts/Layout.astro';
     async function fetchData() {
       try {
         const [summaryRes, resultsRes] = await Promise.all([
-          fetch(`/api/summary?hours=24`),
+          fetch(`/api/summary?hours=${selectedHours}`),
           fetch(`/api/results?limit=${selectedLimit}`)
         ]);
 
@@ -500,6 +506,7 @@ import Layout from '../layouts/Layout.astro';
         renderCharts(summary);
         renderTimeline(summary);
         renderIncidents(summary.incidents);
+        renderEndpointBreakdown(summary.byEndpoint || {});
         renderTable(allRecords);
         updatePageMeta(summary);
       } catch (err) {
@@ -751,9 +758,66 @@ import Layout from '../layouts/Layout.astro';
       });
     }
 
-    function updatePageMeta(summary: any) {
-      const meta = document.getElementById('page-meta')!;
-      meta.textContent = `${summary.totalRecords} records · ${summary.successRate >= 1 ? '100%' : (summary.successRate * 100).toFixed(0)}% success`;
+    function renderEndpointBreakdown(byEndpoint) {
+      const list = document.getElementById('endpoint-list');
+      list.innerHTML = '';
+      const entries = Object.values(byEndpoint);
+      if (entries.length === 0) {
+        list.innerHTML = '<div style="color:var(--lo);font-size:12px;font-family:var(--mono);padding:8px 0">No endpoint data</div>';
+        return;
+      }
+
+      const maxDl = Math.max(...entries.map(e => e.avg.downloadMbps), 1);
+      const maxUl = Math.max(...entries.map(e => e.avg.uploadMbps), 1);
+
+      for (const ep of entries) {
+        const dlPct = ((ep.avg.downloadMbps / maxDl) * 100).toFixed(0);
+        const ulPct = ((ep.avg.uploadMbps   / maxUl) * 100).toFixed(0);
+        const card = document.createElement('div');
+        card.className = 'endpoint-card';
+        card.innerHTML = `
+          <div class="endpoint-name">${ep.name}</div>
+          <div class="endpoint-stats">
+            <div class="endpoint-stat">
+              <div class="endpoint-stat-value">${ep.avg.downloadMbps.toFixed(1)}</div>
+              <div class="endpoint-stat-label">DL Mbps</div>
+            </div>
+            <div class="endpoint-stat">
+              <div class="endpoint-stat-value">${ep.avg.uploadMbps.toFixed(1)}</div>
+              <div class="endpoint-stat-label">UL Mbps</div>
+            </div>
+            <div class="endpoint-stat">
+              <div class="endpoint-stat-value">${ep.avg.latencyMs.toFixed(1)}</div>
+              <div class="endpoint-stat-label">Lat ms</div>
+            </div>
+            <div class="endpoint-stat">
+              <div class="endpoint-stat-value">${ep.count}</div>
+              <div class="endpoint-stat-label">Tests</div>
+            </div>
+          </div>
+          <div class="endpoint-bars">
+            <div class="endpoint-bar-row">
+              <span style="width:36px;flex-shrink:0">DL</span>
+              <div class="endpoint-bar">
+                <div class="endpoint-bar-fill" style="width:${dlPct}%;background:var(--brand)"></div>
+              </div>
+            </div>
+            <div class="endpoint-bar-row">
+              <span style="width:36px;flex-shrink:0">UL</span>
+              <div class="endpoint-bar">
+                <div class="endpoint-bar-fill" style="width:${ulPct}%;background:var(--c-upload)"></div>
+              </div>
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
+      }
+    }
+
+    function updatePageMeta(summary) {
+      const meta = document.getElementById('page-meta');
+      const pct = summary.successRate >= 1 ? '100%' : `${(summary.successRate * 100).toFixed(0)}%`;
+      meta.textContent = `${summary.totalRecords} records · ${pct} success · last ${selectedHours}h`;
     }
 
     document.querySelectorAll('.count-pill').forEach(pill => {
@@ -761,6 +825,15 @@ import Layout from '../layouts/Layout.astro';
         document.querySelectorAll('.count-pill').forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
         selectedLimit = parseInt(pill.dataset.limit || '100');
+        fetchData();
+      });
+    });
+
+    document.querySelectorAll('.time-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        selectedHours = parseInt(pill.dataset.hours || '24', 10);
         fetchData();
       });
     });
