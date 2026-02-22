@@ -311,18 +311,28 @@ import Layout from '../layouts/Layout.astro';
       </div>
       <div class="table-container">
         <table>
+          <colgroup>
+            <col style="width:16%">
+            <col style="width:18%">
+            <col style="width:11%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:10%">
+            <col style="width:10%">
+            <col style="width:9%">
+          </colgroup>
           <thead>
             <tr>
               <th>Timestamp</th>
               <th>Endpoint</th>
               <th>Session</th>
-              <th>Download Mbps</th>
-              <th>Upload Mbps</th>
-              <th>Latency ms</th>
+              <th>Download</th>
+              <th>Upload</th>
+              <th>Latency</th>
               <th>DL Latency</th>
               <th>UL Latency</th>
-              <th>Jitter ms</th>
-              <th>Status</th>
+              <th>Jitter</th>
             </tr>
           </thead>
           <tbody id="results-body"></tbody>
@@ -689,13 +699,17 @@ import Layout from '../layouts/Layout.astro';
 
       const slice = filtered.slice(0, displayedCount);
       for (const rec of slice) {
-        const level = classifyRecord(rec);
-        const statusColor = !rec.success ? '#f85149' : level === 'crit' ? '#f85149' : level === 'warn' ? '#d29922' : '#3fb950';
-        const statusBg    = !rec.success ? 'rgba(248,81,73,0.1)' : level === 'crit' ? 'rgba(248,81,73,0.1)' : level === 'warn' ? 'rgba(210,153,34,0.1)' : 'rgba(63,185,80,0.1)';
-        const statusText  = !rec.success ? '✗ Fail' : level === 'crit' ? '⚠ Slow' : level === 'warn' ? '⚠ Slow' : '✓ OK';
+        const dlColor = rec.download < THRESHOLDS.download.crit ? '#f85149' : rec.download < THRESHOLDS.download.warn ? '#d29922' : 'var(--brand)';
+        const dlBg = rec.download < THRESHOLDS.download.crit ? 'rgba(248,81,73,0.15)' : rec.download < THRESHOLDS.download.warn ? 'rgba(210,153,34,0.15)' : 'transparent';
+        const ulColor = rec.upload < THRESHOLDS.upload.crit ? '#f85149' : rec.upload < THRESHOLDS.upload.warn ? '#d29922' : '#58a6ff';
+        const ulBg = rec.upload < THRESHOLDS.upload.crit ? 'rgba(248,81,73,0.15)' : rec.upload < THRESHOLDS.upload.warn ? 'rgba(210,153,34,0.15)' : 'transparent';
+        const latColor = rec.latency > THRESHOLDS.latency.crit ? '#f85149' : rec.latency > THRESHOLDS.latency.warn ? '#d29922' : '#3fb950';
+        const latBg = rec.latency > THRESHOLDS.latency.crit ? 'rgba(248,81,73,0.15)' : rec.latency > THRESHOLDS.latency.warn ? 'rgba(210,153,34,0.15)' : 'transparent';
+        const jitColor = rec.jitter > THRESHOLDS.jitter.crit ? '#f85149' : rec.jitter > THRESHOLDS.jitter.warn ? '#d29922' : '#bc8cff';
+        const jitBg = rec.jitter > THRESHOLDS.jitter.crit ? 'rgba(248,81,73,0.15)' : rec.jitter > THRESHOLDS.jitter.warn ? 'rgba(210,153,34,0.15)' : 'transparent';
 
         const row = document.createElement('tr');
-        row.style.cssText = 'border-bottom: 1px solid var(--s3); transition: background 0.15s';
+        row.style.cssText = `border-bottom: 1px solid var(--s3); transition: background 0.15s; ${!rec.success ? 'border-left: 3px solid #f85149;' : ''}`;
         row.onmouseenter = () => row.style.background = 'var(--s2)';
         row.onmouseleave = () => row.style.background = '';
         row.innerHTML = `
@@ -704,26 +718,23 @@ import Layout from '../layouts/Layout.astro';
           </td>
           <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--hi)">${rec.endpointName}</td>
           <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--lo)">${rec.sessionID.substring(0,8)}…</td>
-          <td style="padding:10px 12px">
-            <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:var(--brand)">${rec.download.toFixed(1)}</span>
+          <td style="padding:10px 12px; background:${dlBg}; border-radius:4px;">
+            <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:${dlColor}">${rec.download.toFixed(1)}</span>
             <span style="font-family:var(--mono); font-size:10px; color:var(--lo)"> Mbps</span>
           </td>
-          <td style="padding:10px 12px">
-            <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:#58a6ff">${rec.upload.toFixed(1)}</span>
+          <td style="padding:10px 12px; background:${ulBg}; border-radius:4px;">
+            <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:${ulColor}">${rec.upload.toFixed(1)}</span>
             <span style="font-family:var(--mono); font-size:10px; color:var(--lo)"> Mbps</span>
           </td>
-          <td style="padding:10px 12px">
-            <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:#3fb950">${rec.latency.toFixed(1)}</span>
+          <td style="padding:10px 12px; background:${latBg}; border-radius:4px;">
+            <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:${latColor}">${rec.latency.toFixed(1)}</span>
             <span style="font-family:var(--mono); font-size:10px; color:var(--lo)"> ms</span>
           </td>
           <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--lo)">${rec.downLoadedLatency.toFixed(1)} ms</td>
           <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--lo)">${rec.upLoadedLatency.toFixed(1)} ms</td>
-          <td style="padding:10px 12px">
-            <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:#bc8cff">${rec.jitter.toFixed(2)}</span>
+          <td style="padding:10px 12px; background:${jitBg}; border-radius:4px;">
+            <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:${jitColor}">${rec.jitter.toFixed(2)}</span>
             <span style="font-family:var(--mono); font-size:10px; color:var(--lo)"> ms</span>
-          </td>
-          <td style="padding:10px 12px">
-            <span style="display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:600; background:${statusBg}; color:${statusColor}; font-family:var(--mono)">${statusText}</span>
           </td>
         `;
         tbody.appendChild(row);
