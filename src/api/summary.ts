@@ -136,12 +136,15 @@ export async function handleSummary(
   const url = new URL(request.url);
   const clientIP = getClientIP(request);
 
-  console.log(`[handleSummary] Request from ${clientIP}`);
+  console.log(`[handleSummary] START Request from ${clientIP}, URL: ${url.pathname}${url.search}`);
   console.log(`[handleSummary] R2_PREFIX: "${env.R2_PREFIX}"`);
   console.log(`[handleSummary] CACHE_TTL_SECONDS: "${env.CACHE_TTL_SECONDS}"`);
+  console.log(`[handleSummary] MAX_RESULTS_PER_PAGE: "${env.MAX_RESULTS_PER_PAGE}"`);
 
   const rateLimitResult = await checkRateLimit(env, clientIP);
   if (!rateLimitResult.allowed) {
+    const duration = Date.now() - startTime;
+    console.log(`[handleSummary] END Rate limit exceeded after ${duration}ms`);
     return jsonResponse(
       { error: "Rate limit exceeded", retryAfter: rateLimitResult.retryAfter },
       429
@@ -158,6 +161,7 @@ export async function handleSummary(
   cacheParams.set("path", "/api/summary");
   cacheParams.set("hours", String(hours));
   const cacheKey = buildCacheKey(cacheParams);
+  console.log(`[handleSummary] Cache key: ${cacheKey}`);
 
   if (!noCache) {
     const cached = await getCached(cacheKey);
@@ -167,10 +171,12 @@ export async function handleSummary(
         headers: new Headers(cached.headers),
       });
       cachedResponse.headers.set("X-Cache", "HIT");
-      console.log(`[handleSummary] Cache HIT`);
+      const duration = Date.now() - startTime;
+      console.log(`[handleSummary] END Cache HIT after ${duration}ms`);
       return cachedResponse;
     }
   }
+  console.log(`[handleSummary] Cache MISS, proceeding to fetch from R2`);
 
   try {
     const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
@@ -245,6 +251,7 @@ export async function handleSummary(
     console.log(`[handleSummary] Parsed ${records.length} records, ${parseErrors} parse errors`);
 
     if (records.length === 0) {
+      console.log(`[handleSummary] No records found, returning empty response`);
       const response = jsonResponse({
         totalRecords: 0,
         timeRangeHours: hours,
@@ -261,10 +268,13 @@ export async function handleSummary(
 
       if (!noCache) {
         const cacheTtl = parseInt(env.CACHE_TTL_SECONDS, 10);
+        console.log(`[handleSummary] Caching empty response with TTL: ${cacheTtl}s`);
         putCache(cacheKey, response.clone(), cacheTtl, ctx);
       }
 
+      const duration = Date.now() - startTime;
       response.headers.set("X-Cache", "MISS");
+      console.log(`[handleSummary] END Empty response in ${duration}ms`);
       return response;
     }
 
@@ -341,6 +351,7 @@ export async function handleSummary(
     const successRate = records.length > 0 ? successCount / records.length : 1.0;
 
     const incidents = buildIncidents(records);
+    console.log(`[handleSummary] Built ${incidents.length} incidents`);
 
     const response = jsonResponse({
       totalRecords: records.length,
@@ -362,10 +373,16 @@ export async function handleSummary(
       putCache(cacheKey, response.clone(), cacheTtl, ctx);
     }
 
+    const duration = Date.now() - startTime;
     response.headers.set("X-Cache", "MISS");
+    console.log(`[handleSummary] END Success in ${duration}ms, ${records.length} records, ${incidents.length} incidents`);
     return response;
   } catch (err) {
-    console.error("[handleSummary] Error:", err);
+    const duration = Date.now() - startTime;
+    console.error(`[handleSummary] END Error after ${duration}ms:`, err);
+    if (err instanceof Error) {
+      console.error(`[handleSummary] Error stack:`, err.stack);
+    }
     return jsonResponse({ error: "Internal server error", message: String(err) }, 500);
   }
 }

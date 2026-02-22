@@ -65,12 +65,15 @@ export async function handleResults(
   const url = new URL(request.url);
   const clientIP = getClientIP(request);
 
-  console.log(`[handleResults] Request from ${clientIP}, URL: ${url.pathname}`);
+  console.log(`[handleResults] START Request from ${clientIP}, URL: ${url.pathname}${url.search}`);
   console.log(`[handleResults] R2_PREFIX: "${env.R2_PREFIX}"`);
+  console.log(`[handleResults] MAX_RESULTS_PER_PAGE: "${env.MAX_RESULTS_PER_PAGE}"`);
 
   const rateLimitResult = await checkRateLimit(env, clientIP);
   if (!rateLimitResult.allowed) {
     const retryAfter = rateLimitResult.retryAfter || 60;
+    const duration = Date.now() - startTime;
+    console.log(`[handleResults] END Rate limit exceeded after ${duration}ms`);
     return new Response(
       JSON.stringify({ error: "Rate limit exceeded", retryAfter }),
       {
@@ -94,7 +97,7 @@ export async function handleResults(
   const fromTimestamp = params.get("from") || undefined;
   const noCache = params.get("no-cache") === "true";
 
-  console.log(`[handleResults] Query params: limit=${limit}, cursor=${cursor}, endpoint=${endpointFilter}`);
+  console.log(`[handleResults] Query params: limit=${limit}, cursor=${cursor}, endpoint=${endpointFilter}, from=${fromTimestamp}, noCache=${noCache}`);
 
   const cacheParams = new URLSearchParams();
   cacheParams.set("path", "/api/results");
@@ -103,6 +106,7 @@ export async function handleResults(
   if (endpointFilter) cacheParams.set("endpoint", endpointFilter);
   if (fromTimestamp) cacheParams.set("from", fromTimestamp);
   const cacheKey = buildCacheKey(cacheParams);
+  console.log(`[handleResults] Cache key: ${cacheKey}`);
 
   if (!noCache) {
     const cached = await getCached(cacheKey);
@@ -112,10 +116,12 @@ export async function handleResults(
         headers: new Headers(cached.headers),
       });
       cachedResponse.headers.set("X-Cache", "HIT");
-      console.log(`[handleResults] Cache HIT`);
+      const duration = Date.now() - startTime;
+      console.log(`[handleResults] END Cache HIT after ${duration}ms`);
       return cachedResponse;
     }
   }
+  console.log(`[handleResults] Cache MISS, proceeding to fetch from R2`);
 
   try {
     let listOptions: R2ListOptions = { prefix: env.R2_PREFIX, limit: 1000 };
@@ -154,6 +160,7 @@ export async function handleResults(
         const filename = stripPrefix(obj.key, env.R2_PREFIX);
         return filenameToTimestamp(filename) >= fromTimestamp;
       });
+      console.log(`[handleResults] Filtered by timestamp: ${objects.length} -> ${filteredObjects.length} objects`);
     }
 
     const records: SpeedtestRecord[] = [];
@@ -166,7 +173,10 @@ export async function handleResults(
           const filename = stripPrefix(obj.key, env.R2_PREFIX);
           try {
             const body = await env.R2_BUCKET.get(obj.key);
-            if (!body) return null;
+            if (!body) {
+              console.warn(`[handleResults] Empty body for ${obj.key}`);
+              return null;
+            }
             const text = await body.text();
             const data = JSON.parse(text);
             const name = endpointName(data.endpoint);
@@ -198,6 +208,8 @@ export async function handleResults(
       }
     }
 
+    console.log(`[handleResults] Parsed ${records.length} valid records`);
+
     records.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
     const response = jsonResponse({
@@ -213,10 +225,16 @@ export async function handleResults(
       putCache(cacheKey, response.clone(), cacheTtl, ctx);
     }
 
+    const duration = Date.now() - startTime;
     response.headers.set("X-Cache", "MISS");
+    console.log(`[handleResults] END Success in ${duration}ms, returning ${records.length} records`);
     return response;
   } catch (err) {
-    console.error("[handleResults] Error:", err);
+    const duration = Date.now() - startTime;
+    console.error(`[handleResults] END Error after ${duration}ms:`, err);
+    if (err instanceof Error) {
+      console.error(`[handleResults] Error stack:`, err.stack);
+    }
     return jsonResponse({ error: "Internal server error", message: String(err) }, 500);
   }
 }
