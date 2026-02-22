@@ -471,6 +471,7 @@ import Layout from '../layouts/Layout.astro';
     function renderCharts(summary) {
       const tl = summary.timeline || [];
       if (tl.length === 0) return;
+      if (typeof Chart === 'undefined') return;
 
       const throughputCanvas = document.getElementById('throughput-chart') as HTMLCanvasElement;
       const latencyCanvas = document.getElementById('latency-chart') as HTMLCanvasElement;
@@ -754,7 +755,7 @@ import Layout from '../layouts/Layout.astro';
         toInput.style.color = 'var(--lo)';
         toInput.style.pointerEvents = 'none';
         toInput.value = '';
-        fetchData();
+        if (typeof Chart !== 'undefined') fetchData();
       });
     });
 
@@ -782,7 +783,7 @@ import Layout from '../layouts/Layout.astro';
         const hours = diffMs / (1000 * 60 * 60);
         if (hours > 0) {
           selectedHours = hours;
-          fetchData();
+          if (typeof Chart !== 'undefined') fetchData();
         }
       }
     }
