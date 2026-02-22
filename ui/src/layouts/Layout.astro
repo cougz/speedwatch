@@ -1,0 +1,116 @@
+---
+interface Props {
+  title?: string;
+}
+const { title = "SpeedWatch" } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Real-time Cloudflare speedtest monitoring dashboard" />
+    <title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style is:global>
+      :root {
+        --brand: #F48024;
+        --brand-light: #FF9A4C;
+        --brand-glow: rgba(244,128,36,0.22);
+        --s0: #0d0d0d;
+        --s1: #161616;
+        --s2: #222222;
+        --s3: #2e2e2e;
+        --s4: #3a3a3a;
+        --hi: #ffffff;
+        --md: #d0d0d0;
+        --lo: #888888;
+        --sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      html::-webkit-scrollbar { display: none; }
+
+      body {
+        background: var(--s0);
+        color: var(--hi);
+        font-family: var(--sans);
+        font-size: 14px;
+        line-height: 1.6;
+        min-height: 100vh;
+      }
+
+      a { color: var(--brand); text-decoration: none; }
+      a:hover { color: var(--brand-light); }
+      code, pre { font-family: var(--mono); font-size: 13px; }
+
+      .wave-background {
+        position: fixed; top: 0; left: 0;
+        width: 100%; height: 100%;
+        z-index: -1; overflow: hidden; pointer-events: none;
+      }
+      .wave {
+        position: absolute; width: 200%; height: 200%;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 50%, var(--brand) 100%);
+        opacity: 0.04;
+        animation: waveMove 20s ease-in-out infinite;
+      }
+      .wave-1 { top: -60%; left: -30%; animation-delay: 0s; }
+      .wave-2 { top: -70%; left: -40%; animation-delay: -3s; }
+      .wave-3 { top: -80%; left: -50%; animation-delay: -6s; }
+      @keyframes waveMove {
+        0%, 100% { transform: translate(-30%, -30%) rotate(0deg); }
+        50%       { transform: translate(-20%, -20%) rotate(180deg); }
+      }
+
+      .dots-container {
+        position: fixed; top: 0; left: 0;
+        width: 100%; height: 100%;
+        pointer-events: none; z-index: -1;
+      }
+      .dot {
+        position: absolute; width: 6px; height: 6px;
+        background: var(--brand); border-radius: 50%;
+        opacity: 0.2; animation: floatDot 20s ease-in-out infinite;
+      }
+      .dot-1  { top: 10%; left: 15%; animation-delay: 0s; }
+      .dot-2  { top: 20%; left: 80%; animation-delay: 2s; }
+      .dot-3  { top: 30%; left: 45%; animation-delay: 4s; }
+      .dot-4  { top: 40%; left: 10%; animation-delay: 6s; }
+      .dot-5  { top: 50%; left: 90%; animation-delay: 8s; }
+      .dot-6  { top: 60%; left: 25%; animation-delay: 10s; }
+      .dot-7  { top: 70%; left: 70%; animation-delay: 12s; }
+      .dot-8  { top: 80%; left: 35%; animation-delay: 14s; }
+      .dot-9  { top: 90%; left: 55%; animation-delay: 16s; }
+      .dot-10 { top: 15%; left: 75%; animation-delay: 18s; }
+      @keyframes floatDot {
+        0%, 100% { transform: translateY(0); opacity: 0.15; }
+        50%       { transform: translateY(-14px); opacity: 0.35; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wave-background">
+      <div class="wave wave-1"></div>
+      <div class="wave wave-2"></div>
+      <div class="wave wave-3"></div>
+    </div>
+    <div class="dots-container">
+      <div class="dot dot-1"></div><div class="dot dot-2"></div><div class="dot dot-3"></div>
+      <div class="dot dot-4"></div><div class="dot dot-5"></div><div class="dot dot-6"></div>
+      <div class="dot dot-7"></div><div class="dot dot-8"></div><div class="dot dot-9"></div>
+      <div class="dot dot-10"></div>
+    </div>
+    <slot />
+  </body>
+</html>

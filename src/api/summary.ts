@@ -1,0 +1,326 @@
+import type { Env, SpeedtestRecord, Incident, DegradationLevel } from "../types";
+import { checkRateLimit } from "../utils/ratelimit";
+import { buildCacheKey, getCached, putCache } from "../utils/cache";
+import { classifyRecord, THRESHOLDS } from "../types";
+
+function getClientIP(request: Request): string {
+  return (
+    request.headers.get("CF-Connecting-IP") ??
+    request.headers.get("X-Forwarded-For")?.split(",")[0].trim() ??
+    "unknown"
+  );
+}
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+function keyToTimestamp(key: string): string {
+  const name = key.replace(/^json-results\/speedtest-/, "").replace(/\.json$/, "");
+  const [datePart, ...rest] = name.split("T");
+  const timePart = rest.join("T");
+  const fixedTime = timePart.replace("-", ":").replace("-", ":").replace("-", ".");
+  return `${datePart}T${fixedTime}`;
+}
+
+function endpointName(url: string): string {
+  try {
+    return new URL(url).hostname.split(".")[0];
+  } catch {
+    return url;
+  }
+}
+
+const toMbps = (bps: number) => Math.round((bps / 1_000_000) * 100) / 100;
+
+function percentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const index = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, index)];
+}
+
+function groupByHour(records: SpeedtestRecord[]): Record<string, SpeedtestRecord[]> {
+  const groups: Record<string, SpeedtestRecord[]> = {};
+  for (const rec of records) {
+    const date = new Date(rec.timestamp);
+    const hourKey = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours())
+    ).toISOString();
+    if (!groups[hourKey]) groups[hourKey] = [];
+    groups[hourKey].push(rec);
+  }
+  return groups;
+}
+
+function buildIncidents(records: SpeedtestRecord[]): Incident[] {
+  const sorted = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  const incidents: Incident[] = [];
+  let current: Incident | null = null;
+
+  for (const rec of sorted) {
+    const level = classifyRecord(rec);
+    if (level === "ok") {
+      if (current) {
+        incidents.push(current);
+        current = null;
+      }
+      continue;
+    }
+
+    const metrics: string[] = [];
+    if (rec.download < THRESHOLDS.download.warn) metrics.push("download");
+    if (rec.upload < THRESHOLDS.upload.warn) metrics.push("upload");
+    if (rec.latency > THRESHOLDS.latency.warn) metrics.push("latency");
+    if (rec.jitter > THRESHOLDS.jitter.warn) metrics.push("jitter");
+
+    if (!current) {
+      current = {
+        start: rec.timestamp,
+        end: rec.timestamp,
+        level,
+        affectedMetrics: metrics,
+        recordCount: 1,
+        worstDownloadMbps: rec.download,
+        worstUploadMbps: rec.upload,
+        worstLatencyMs: rec.latency,
+        worstJitterMs: rec.jitter,
+      };
+    } else {
+      current.end = rec.timestamp;
+      current.recordCount++;
+      if (level === "crit") current.level = "crit";
+      for (const m of metrics) {
+        if (!current.affectedMetrics.includes(m)) current.affectedMetrics.push(m);
+      }
+      current.worstDownloadMbps = Math.min(current.worstDownloadMbps, rec.download);
+      current.worstUploadMbps = Math.min(current.worstUploadMbps, rec.upload);
+      current.worstLatencyMs = Math.max(current.worstLatencyMs, rec.latency);
+      current.worstJitterMs = Math.max(current.worstJitterMs, rec.jitter);
+    }
+  }
+
+  if (current) incidents.push(current);
+  return incidents.reverse();
+}
+
+export async function handleSummary(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const startTime = Date.now();
+  const url = new URL(request.url);
+  const clientIP = getClientIP(request);
+
+  const rateLimitResult = await checkRateLimit(env, clientIP);
+  if (!rateLimitResult.allowed) {
+    return jsonResponse(
+      { error: "Rate limit exceeded", retryAfter: rateLimitResult.retryAfter },
+      429
+    );
+  }
+
+  const params = new URLSearchParams(url.search);
+  const hours = Math.min(parseInt(params.get("hours") || "24", 10), 720);
+  const noCache = params.get("no-cache") === "true";
+
+  const cacheParams = new URLSearchParams();
+  cacheParams.set("path", "/api/summary");
+  cacheParams.set("hours", String(hours));
+  const cacheKey = buildCacheKey(cacheParams);
+
+  if (!noCache) {
+    const cached = await getCached(cacheKey);
+    if (cached) {
+      const cachedResponse = new Response(cached.body, {
+        status: cached.status,
+        headers: new Headers(cached.headers),
+      });
+      cachedResponse.headers.set("X-Cache", "HIT");
+      return cachedResponse;
+    }
+  }
+
+  try {
+    const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+    let allObjects: R2Object[] = [];
+    let cursor: string | undefined = undefined;
+
+    while (true) {
+      const listed = await env.RESULTS_BUCKET.list({
+        prefix: env.R2_PREFIX,
+        limit: 1000,
+        cursor,
+      });
+      allObjects = allObjects.concat(listed.objects);
+      cursor = listed.truncated ? (listed as { truncated: true; cursor: string }).cursor : undefined;
+      if (!listed.truncated) break;
+    }
+
+    const objectsInWindow = allObjects.filter((obj) => keyToTimestamp(obj.key) >= cutoffTime);
+
+    const records: SpeedtestRecord[] = [];
+    const batchSize = 50;
+
+    for (let i = 0; i < objectsInWindow.length; i += batchSize) {
+      const batch = objectsInWindow.slice(i, i + batchSize);
+      const promises = batch.map(async (obj) => {
+        const body = await env.RESULTS_BUCKET.get(obj.key);
+        if (!body) return null;
+        const text = await body.text();
+        const data = JSON.parse(text);
+        return {
+          timestamp: keyToTimestamp(obj.key),
+          sessionID: data.sessionID,
+          endpoint: data.endpoint,
+          endpointName: endpointName(data.endpoint),
+          success: data.success,
+          download: toMbps(data.result?.download || 0),
+          upload: toMbps(data.result?.upload || 0),
+          latency: data.result?.latency || 0,
+          jitter: data.result?.jitter || 0,
+          downLoadedLatency: data.result?.downLoadedLatency || 0,
+          downLoadedJitter: data.result?.downLoadedJitter || 0,
+          upLoadedLatency: data.result?.upLoadedLatency || 0,
+          upLoadedJitter: data.result?.upLoadedJitter || 0,
+        } as SpeedtestRecord;
+      });
+
+      const results = await Promise.all(promises);
+      for (const r of results) {
+        if (r) records.push(r);
+      }
+    }
+
+    if (records.length === 0) {
+      const response = jsonResponse({
+        totalRecords: 0,
+        timeRangeHours: hours,
+        avg: { downloadMbps: 0, uploadMbps: 0, latencyMs: 0, jitterMs: 0 },
+        p50: { downloadMbps: 0, uploadMbps: 0, latencyMs: 0, jitterMs: 0 },
+        p95: { downloadMbps: 0, uploadMbps: 0, latencyMs: 0, jitterMs: 0 },
+        p99: { downloadMbps: 0, uploadMbps: 0, latencyMs: 0, jitterMs: 0 },
+        byEndpoint: {},
+        timeline: [],
+        successRate: 1.0,
+        incidents: [],
+        incidentCount: 0,
+      });
+
+      if (!noCache) {
+        const cacheTtl = parseInt(env.CACHE_TTL_SECONDS, 10);
+        putCache(cacheKey, response.clone(), cacheTtl, ctx);
+      }
+
+      response.headers.set("X-Cache", "MISS");
+      return response;
+    }
+
+    const downloads = records.map((r) => r.download);
+    const uploads = records.map((r) => r.upload);
+    const latencies = records.map((r) => r.latency);
+    const jitters = records.map((r) => r.jitter);
+
+    const avg = {
+      downloadMbps: Math.round((downloads.reduce((a, b) => a + b, 0) / records.length) * 100) / 100,
+      uploadMbps: Math.round((uploads.reduce((a, b) => a + b, 0) / records.length) * 100) / 100,
+      latencyMs: Math.round((latencies.reduce((a, b) => a + b, 0) / records.length) * 100) / 100,
+      jitterMs: Math.round((jitters.reduce((a, b) => a + b, 0) / records.length) * 100) / 100,
+    };
+
+    const p50 = {
+      downloadMbps: percentile(downloads, 50),
+      uploadMbps: percentile(uploads, 50),
+      latencyMs: percentile(latencies, 50),
+      jitterMs: percentile(jitters, 50),
+    };
+
+    const p95 = {
+      downloadMbps: percentile(downloads, 95),
+      uploadMbps: percentile(uploads, 95),
+      latencyMs: percentile(latencies, 95),
+      jitterMs: percentile(jitters, 95),
+    };
+
+    const p99 = {
+      downloadMbps: percentile(downloads, 99),
+      uploadMbps: percentile(uploads, 99),
+      latencyMs: percentile(latencies, 99),
+      jitterMs: percentile(jitters, 99),
+    };
+
+    const byEndpoint: Record<string, { name: string; count: number; avg: { downloadMbps: number; uploadMbps: number; latencyMs: number; jitterMs: number } }> = {};
+    const endpointGroups: Record<string, SpeedtestRecord[]> = {};
+    for (const rec of records) {
+      if (!endpointGroups[rec.endpointName]) endpointGroups[rec.endpointName] = [];
+      endpointGroups[rec.endpointName].push(rec);
+    }
+
+    for (const [name, recs] of Object.entries(endpointGroups)) {
+      const dl = recs.map((r) => r.download);
+      const ul = recs.map((r) => r.upload);
+      const lat = recs.map((r) => r.latency);
+      const jit = recs.map((r) => r.jitter);
+      byEndpoint[name] = {
+        name,
+        count: recs.length,
+        avg: {
+          downloadMbps: Math.round((dl.reduce((a, b) => a + b, 0) / recs.length) * 100) / 100,
+          uploadMbps: Math.round((ul.reduce((a, b) => a + b, 0) / recs.length) * 100) / 100,
+          latencyMs: Math.round((lat.reduce((a, b) => a + b, 0) / recs.length) * 100) / 100,
+          jitterMs: Math.round((jit.reduce((a, b) => a + b, 0) / recs.length) * 100) / 100,
+        },
+      };
+    }
+
+    const hourGroups = groupByHour(records);
+    const timeline = Object.entries(hourGroups)
+      .map(([hour, recs]) => ({
+        hour,
+        downloadMbps: Math.round((recs.reduce((a, b) => a + b.download, 0) / recs.length) * 100) / 100,
+        uploadMbps: Math.round((recs.reduce((a, b) => a + b.upload, 0) / recs.length) * 100) / 100,
+        latencyMs: Math.round((recs.reduce((a, b) => a + b.latency, 0) / recs.length) * 100) / 100,
+        jitterMs: Math.round((recs.reduce((a, b) => a + b.jitter, 0) / recs.length) * 100) / 100,
+        count: recs.length,
+      }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+
+    const successCount = records.filter((r) => r.success).length;
+    const successRate = records.length > 0 ? successCount / records.length : 1.0;
+
+    const incidents = buildIncidents(records);
+
+    const response = jsonResponse({
+      totalRecords: records.length,
+      timeRangeHours: hours,
+      avg,
+      p50,
+      p95,
+      p99,
+      byEndpoint,
+      timeline,
+      successRate,
+      incidents,
+      incidentCount: incidents.length,
+    });
+
+    if (!noCache) {
+      const cacheTtl = parseInt(env.CACHE_TTL_SECONDS, 10);
+      putCache(cacheKey, response.clone(), cacheTtl, ctx);
+    }
+
+    response.headers.set("X-Cache", "MISS");
+    return response;
+  } catch (err) {
+    console.error("Error in handleSummary:", err);
+    return jsonResponse({ error: "Internal server error" }, 500);
+  }
+}

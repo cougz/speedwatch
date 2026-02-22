@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "speedwatch",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-02-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./ui/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api*", "/llms.txt"]
+  },
+  "r2_buckets": [
+    {
+      "binding": "RESULTS_BUCKET",
+      "bucket_name": "speedtest-results"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 60, "period": 60 }
+    }
+  ],
+  "vars": {
+    "R2_PREFIX": "json-results/",
+    "CACHE_TTL_SECONDS": "60",
+    "MAX_RESULTS_PER_PAGE": "200"
+  }
+}

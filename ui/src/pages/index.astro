@@ -1,0 +1,748 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="SpeedWatch">
+  <style>
+    :root {
+      --c-upload: #58a6ff;
+      --c-latency: #3fb950;
+      --c-jitter: #bc8cff;
+      --c-red: #f85149;
+      --c-amber: #d29922;
+      --c-green: #3fb950;
+    }
+
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 56px;
+      background: rgba(13,13,13,0.85); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--s3);
+      position: sticky; top: 0; z-index: 100;
+    }
+
+    .nav-brand {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 16px; font-weight: 600; color: var(--hi);
+    }
+
+    .nav-right { display: flex; align-items: center; gap: 10px; }
+
+    .nav-pill {
+      padding: 4px 12px; font-size: 11px; font-weight: 500;
+      border-radius: 20px; background: var(--s2); color: var(--md);
+      cursor: pointer; transition: all 0.15s ease;
+      border: 1px solid var(--s3);
+    }
+    .nav-pill:hover { background: var(--s3); color: var(--hi); }
+    .nav-pill.active { background: var(--brand-glow); border-color: var(--brand); color: var(--brand-light); }
+
+    .live-pill { display: flex; align-items: center; gap: 6px; }
+    .live-dot {
+      width: 6px; height: 6px; background: var(--c-green);
+      border-radius: 50%; animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.9); }
+    }
+
+    main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px;
+    }
+    .page-title { font-size: 20px; font-weight: 600; color: var(--hi); }
+    .page-meta { font-size: 12px; color: var(--lo); font-family: var(--mono); }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 14px; margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--s1); border: 1px solid var(--s3);
+      border-radius: 12px; padding: 18px 20px;
+      position: relative; overflow: hidden;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+      cursor: default;
+    }
+    .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: var(--card-accent);
+    }
+    .kpi-card:hover { border-color: var(--s4); transform: translateY(-1px); }
+
+    .kpi-label {
+      font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--lo); margin-bottom: 6px;
+    }
+
+    .kpi-value {
+      font-size: 2rem; font-family: var(--mono); font-weight: 600;
+      color: var(--hi); line-height: 1; margin-bottom: 4px;
+    }
+    .kpi-value.loading {
+      background: linear-gradient(90deg, var(--s2) 25%, var(--s3) 50%, var(--s2) 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s infinite;
+      color: transparent; border-radius: 4px;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .kpi-delta {
+      font-size: 11px; color: var(--lo); font-family: var(--mono);
+    }
+
+    .kpi-sparkline { height: 36px; margin-top: 8px; }
+
+    .timeline-section { margin-bottom: 24px; }
+    .section-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .section-title { font-size: 13px; font-weight: 600; color: var(--md); }
+    .section-meta { font-size: 11px; font-family: var(--mono); color: var(--lo); }
+
+    .timeline-strip-wrap {
+      background: var(--s1); border: 1px solid var(--s3);
+      border-radius: 12px; padding: 16px 20px 12px; margin-bottom: 12px;
+    }
+    .timeline-strip {
+      display: flex; gap: 2px; height: 28px; align-items: stretch;
+      margin-bottom: 6px; border-radius: 4px; overflow: hidden;
+    }
+    .timeline-cell {
+      flex: 1; min-width: 3px; border-radius: 2px; cursor: pointer;
+      transition: opacity 0.15s ease, transform 0.15s ease; position: relative;
+    }
+    .timeline-cell:hover { opacity: 0.85; transform: scaleY(1.15); }
+    .cell-ok { background: #3fb950; opacity: 0.6; }
+    .cell-warn { background: #d29922; opacity: 0.85; }
+    .cell-crit { background: #f85149; opacity: 1; }
+    .cell-missing { background: var(--s3); opacity: 0.4; }
+
+    .timeline-axis {
+      display: flex; justify-content: space-between;
+      font-size: 9px; font-family: var(--mono); color: var(--lo); padding: 0 1px;
+    }
+
+    .timeline-tooltip {
+      position: fixed; background: var(--s2); border: 1px solid var(--s3);
+      border-radius: 8px; padding: 8px 12px; font-size: 11px;
+      font-family: var(--mono); color: var(--md); pointer-events: none;
+      z-index: 200; display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      white-space: nowrap; line-height: 1.8;
+    }
+
+    .incident-list { display: flex; flex-direction: column; gap: 8px; }
+    .incident-card {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: var(--s1); border: 1px solid var(--s3);
+      border-radius: 10px; padding: 12px 16px;
+      transition: border-color 0.2s ease;
+    }
+    .incident-card:hover { border-color: var(--s4); }
+    .incident-card.level-warn { border-left: 3px solid #d29922; }
+    .incident-card.level-crit { border-left: 3px solid #f85149; }
+    .incident-icon { font-size: 16px; line-height: 1; flex-shrink: 0; padding-top: 1px; }
+    .incident-body { flex: 1; min-width: 0; }
+    .incident-time { font-size: 11px; font-family: var(--mono); color: var(--lo); margin-bottom: 3px; }
+    .incident-desc { font-size: 13px; font-weight: 500; color: var(--hi); }
+    .incident-metrics { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+    .incident-metric {
+      font-size: 11px; font-family: var(--mono); padding: 2px 8px;
+      border-radius: 6px; background: var(--s2); color: var(--md);
+    }
+    .incident-metric.affected { color: #f85149; background: rgba(248,81,73,0.1); }
+    .incident-count {
+      font-size: 11px; font-family: var(--mono); color: var(--lo);
+      flex-shrink: 0; white-space: nowrap; align-self: center;
+    }
+    .no-incidents {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--s1); border: 1px solid var(--s3);
+      border-radius: 10px; padding: 14px 16px; font-size: 13px;
+      color: #3fb950; font-weight: 500;
+    }
+
+    .chart-grid {
+      display: grid; grid-template-columns: 2fr 1fr; gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .chart-card {
+      background: var(--s1); border: 1px solid var(--s3);
+      border-radius: 12px; padding: 16px 20px;
+    }
+
+    .chart-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+    }
+    .chart-title { font-size: 13px; font-weight: 600; color: var(--md); }
+    .chart-legend { display: flex; gap: 12px; font-size: 11px; color: var(--lo); }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-color { width: 8px; height: 8px; border-radius: 2px; }
+
+    .throughput-chart { height: 200px; position: relative; }
+    .latency-chart { height: 70px; position: relative; margin-top: 8px; }
+    .chart-svg { width: 100%; height: 100%; }
+
+    .endpoint-list { display: flex; flex-direction: column; gap: 10px; max-height: 270px; overflow-y: auto; }
+    .endpoint-card {
+      background: var(--s2); border: 1px solid var(--s3);
+      border-radius: 8px; padding: 12px; transition: border-color 0.2s ease;
+    }
+    .endpoint-card:hover { border-color: var(--s4); }
+    .endpoint-name {
+      font-size: 11px; font-family: var(--mono); color: var(--lo);
+      margin-bottom: 8px;
+    }
+    .endpoint-stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      font-size: 11px; font-family: var(--mono); color: var(--md);
+    }
+    .endpoint-stat { text-align: center; }
+    .endpoint-stat-value { font-weight: 600; color: var(--hi); }
+    .endpoint-stat-label { font-size: 9px; color: var(--lo); }
+    .endpoint-bars { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+    .endpoint-bar-row { display: flex; gap: 8px; font-size: 10px; color: var(--lo); }
+    .endpoint-bar {
+      height: 6px; background: var(--s3); border-radius: 3px;
+      flex: 1; position: relative; overflow: hidden;
+    }
+    .endpoint-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+
+    .table-card {
+      background: var(--s1); border: 1px solid var(--s3);
+      border-radius: 12px; padding: 16px 20px;
+    }
+
+    .table-container { overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 12px; font-family: var(--mono);
+    }
+    th {
+      text-align: left; padding: 8px 12px; font-weight: 500;
+      color: var(--lo); border-bottom: 1px solid var(--s3);
+      position: sticky; top: 0; background: var(--s1);
+    }
+    td {
+      padding: 8px 12px; border-bottom: 1px solid var(--s3);
+      color: var(--md);
+    }
+    tr:hover td { background: var(--s2); }
+    tr.hidden { display: none; }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;
+    }
+    .status-ok { color: var(--c-green); background: rgba(63,185,80,0.1); }
+    .status-warn { color: var(--c-amber); background: rgba(210,153,34,0.1); }
+    .status-fail { color: var(--c-red); background: rgba(248,81,73,0.1); }
+
+    .load-more-btn {
+      display: block; width: 100%; padding: 12px;
+      background: var(--s2); border: 1px solid var(--s3);
+      border-radius: 8px; color: var(--md); font-size: 12px;
+      font-weight: 500; cursor: pointer; transition: all 0.15s ease;
+      margin-top: 12px;
+    }
+    .load-more-btn:hover { background: var(--s3); color: var(--hi); }
+    .load-more-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+
+  <nav>
+    <div class="nav-brand">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" fill="#F48024"/>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" fill="white"/>
+      </svg>
+      SpeedWatch
+    </div>
+    <div class="nav-right">
+      <div class="nav-pill live-pill">
+        <div class="live-dot"></div> Live
+      </div>
+      <div class="nav-pill time-pill" data-hours="1">1h</div>
+      <div class="nav-pill time-pill" data-hours="6">6h</div>
+      <div class="nav-pill time-pill active" data-hours="24">24h</div>
+      <div class="nav-pill time-pill" data-hours="168">7d</div>
+      <div class="nav-pill ep-filter active" data-ep="all">All</div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="page-header">
+      <div class="page-title">Speedtest Dashboard</div>
+      <div class="page-meta" id="page-meta">Loading...</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--card-accent: var(--brand)">
+        <div class="kpi-label">Avg Download</div>
+        <div class="kpi-value loading" id="kpi-download">--</div>
+        <div class="kpi-delta" id="kpi-download-delta">p95: --</div>
+        <svg class="kpi-sparkline" viewBox="0 0 200 36" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="grad-download" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:var(--brand);stop-opacity:0.3"/>
+              <stop offset="100%" style="stop-color:var(--brand);stop-opacity:0"/>
+            </linearGradient>
+          </defs>
+          <path id="sparkline-download" fill="url(#grad-download)" stroke="var(--brand)" stroke-width="1.5"/>
+        </svg>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--c-upload)">
+        <div class="kpi-label">Avg Upload</div>
+        <div class="kpi-value loading" id="kpi-upload">--</div>
+        <div class="kpi-delta" id="kpi-upload-delta">p95: --</div>
+        <svg class="kpi-sparkline" viewBox="0 0 200 36" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="grad-upload" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:var(--c-upload);stop-opacity:0.3"/>
+              <stop offset="100%" style="stop-color:var(--c-upload);stop-opacity:0"/>
+            </linearGradient>
+          </defs>
+          <path id="sparkline-upload" fill="url(#grad-upload)" stroke="var(--c-upload)" stroke-width="1.5"/>
+        </svg>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--c-latency)">
+        <div class="kpi-label">Avg Latency</div>
+        <div class="kpi-value loading" id="kpi-latency">--</div>
+        <div class="kpi-delta" id="kpi-latency-delta">p95: --</div>
+        <svg class="kpi-sparkline" viewBox="0 0 200 36" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="grad-latency" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:var(--c-latency);stop-opacity:0.3"/>
+              <stop offset="100%" style="stop-color:var(--c-latency);stop-opacity:0"/>
+            </linearGradient>
+          </defs>
+          <path id="sparkline-latency" fill="url(#grad-latency)" stroke="var(--c-latency)" stroke-width="1.5"/>
+        </svg>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--c-jitter)">
+        <div class="kpi-label">Avg Jitter</div>
+        <div class="kpi-value loading" id="kpi-jitter">--</div>
+        <div class="kpi-delta" id="kpi-jitter-delta">p95: --</div>
+        <svg class="kpi-sparkline" viewBox="0 0 200 36" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="grad-jitter" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:var(--c-jitter);stop-opacity:0.3"/>
+              <stop offset="100%" style="stop-color:var(--c-jitter);stop-opacity:0"/>
+            </linearGradient>
+          </defs>
+          <path id="sparkline-jitter" fill="url(#grad-jitter)" stroke="var(--c-jitter)" stroke-width="1.5"/>
+        </svg>
+      </div>
+    </div>
+
+    <section class="timeline-section">
+      <div class="section-header">
+        <div class="section-title">Performance Timeline</div>
+        <div class="section-meta" id="timeline-meta"></div>
+      </div>
+      <div class="timeline-strip-wrap">
+        <div class="timeline-strip" id="timeline-strip"></div>
+        <div class="timeline-axis" id="timeline-axis"></div>
+      </div>
+      <div class="incident-list" id="incident-list"></div>
+    </section>
+
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">Throughput Timeline</div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-color" style="background:var(--brand)"></div> Download</div>
+            <div class="legend-item"><div class="legend-color" style="background:var(--c-upload)"></div> Upload</div>
+          </div>
+        </div>
+        <div class="throughput-chart">
+          <svg class="chart-svg" viewBox="0 0 1000 200" preserveAspectRatio="none" id="throughput-svg"></svg>
+        </div>
+        <div class="chart-header" style="margin-top: 12px; margin-bottom: 8px;">
+          <div class="chart-title">Latency Timeline</div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-color" style="background:var(--c-latency)"></div> Latency</div>
+          </div>
+        </div>
+        <div class="latency-chart">
+          <svg class="chart-svg" viewBox="0 0 1000 70" preserveAspectRatio="none" id="latency-svg"></svg>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">Endpoint Breakdown</div>
+        </div>
+        <div class="endpoint-list" id="endpoint-list"></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="chart-header">
+        <div class="chart-title">Recent Results</div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Endpoint</th>
+              <th>Session</th>
+              <th>Download Mbps</th>
+              <th>Upload Mbps</th>
+              <th>Latency ms</th>
+              <th>DL Latency</th>
+              <th>UL Latency</th>
+              <th>Jitter ms</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+      <button class="load-more-btn" id="load-more" disabled>Load More</button>
+    </div>
+  </main>
+
+  <div class="timeline-tooltip" id="timeline-tooltip"></div>
+
+  <script>
+    interface TimelinePoint { hour: string; downloadMbps: number; uploadMbps: number; latencyMs: number; jitterMs: number; count: number; }
+    interface SpeedtestRecord { timestamp: string; sessionID: string; endpoint: string; endpointName: string; success: boolean; download: number; upload: number; latency: number; jitter: number; downLoadedLatency: number; downLoadedJitter: number; upLoadedLatency: number; upLoadedJitter: number; }
+    interface Incident { start: string; end: string; level: string; affectedMetrics: string[]; recordCount: number; worstDownloadMbps: number; worstUploadMbps: number; worstLatencyMs: number; worstJitterMs: number; }
+
+    const THRESHOLDS = {
+      download: { warn: 50, crit: 25 },
+      upload: { warn: 20, crit: 10 },
+      latency: { warn: 20, crit: 50 },
+      jitter: { warn: 5, crit: 15 },
+    };
+
+    let selectedHours = 24;
+    let selectedEndpoint = 'all';
+    let currentCursor: string | null = null;
+    let allRecords: SpeedtestRecord[] = [];
+
+    function classifyRecord(r: SpeedtestRecord): 'ok' | 'warn' | 'crit' {
+      if (r.download < THRESHOLDS.download.crit || r.upload < THRESHOLDS.upload.crit || r.latency > THRESHOLDS.latency.crit || r.jitter > THRESHOLDS.jitter.crit) return 'crit';
+      if (r.download < THRESHOLDS.download.warn || r.upload < THRESHOLDS.upload.warn || r.latency > THRESHOLDS.latency.warn || r.jitter > THRESHOLDS.jitter.warn) return 'warn';
+      return 'ok';
+    }
+
+    function timelineToPath(points: TimelinePoint[], metric: keyof TimelinePoint, w: number, h: number): string {
+      const values = points.map(p => Number(p[metric]));
+      const max = Math.max(...values, 1);
+      return points.map((p, i) => {
+        const x = (i / (points.length - 1)) * w;
+        const y = h - (Number(p[metric]) / max) * h;
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+    }
+
+    async function fetchData() {
+      try {
+        const [summaryRes, resultsRes] = await Promise.all([
+          fetch(`/api/summary?hours=${selectedHours}`),
+          fetch(`/api/results?limit=100`)
+        ]);
+
+        const summary = await summaryRes.json();
+        const results = await resultsRes.json();
+
+        allRecords = results.records;
+        currentCursor = results.cursor;
+
+        renderKpiCards(summary);
+        renderCharts(summary);
+        renderTimeline(allRecords, summary.incidents);
+        renderIncidents(summary.incidents);
+        renderTable(allRecords);
+        renderEndpointPills(summary.byEndpoint);
+        updatePageMeta(summary);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+      }
+    }
+
+    function renderKpiCards(summary: any) {
+      const updateKpi = (id: string, value: number, delta: number, p95Value: number) => {
+        const el = document.getElementById(id);
+        const deltaEl = document.getElementById(`${id}-delta`);
+        el.classList.remove('loading');
+        el.textContent = value.toFixed(1);
+        deltaEl.textContent = `p95: ${p95Value.toFixed(1)}`;
+      };
+
+      updateKpi('kpi-download', summary.avg.downloadMbps, 0, summary.p95.downloadMbps);
+      updateKpi('kpi-upload', summary.avg.uploadMbps, 0, summary.p95.uploadMbps);
+      updateKpi('kpi-latency', summary.avg.latencyMs, 0, summary.p95.latencyMs);
+      updateKpi('kpi-jitter', summary.avg.jitterMs, 0, summary.p95.jitterMs);
+
+      const sparkPath = timelineToPath(summary.timeline, 'downloadMbps', 200, 36);
+      document.getElementById('sparkline-download').setAttribute('d', sparkPath + ' L200,36 L0,36 Z');
+
+      const sparkUploadPath = timelineToPath(summary.timeline, 'uploadMbps', 200, 36);
+      document.getElementById('sparkline-upload').setAttribute('d', sparkUploadPath + ' L200,36 L0,36 Z');
+
+      const sparkLatPath = timelineToPath(summary.timeline, 'latencyMs', 200, 36);
+      document.getElementById('sparkline-latency').setAttribute('d', sparkLatPath + ' L200,36 L0,36 Z');
+
+      const sparkJitPath = timelineToPath(summary.timeline, 'jitterMs', 200, 36);
+      document.getElementById('sparkline-jitter').setAttribute('d', sparkJitPath + ' L200,36 L0,36 Z');
+    }
+
+    function renderCharts(summary: any) {
+      const throughputSvg = document.getElementById('throughput-svg');
+      const latencySvg = document.getElementById('latency-svg');
+      
+      if (summary.timeline.length === 0) return;
+
+      const maxDl = Math.max(...summary.timeline.map((p: TimelinePoint) => p.downloadMbps), 1);
+      const maxUl = Math.max(...summary.timeline.map((p: TimelinePoint) => p.uploadMbps), 1);
+      const maxLat = Math.max(...summary.timeline.map((p: TimelinePoint) => p.latencyMs), 1);
+
+      const points = summary.timeline.length;
+      const xStep = 1000 / Math.max(points - 1, 1);
+
+      const dlPath = summary.timeline.map((p: TimelinePoint, i: number) => {
+        const x = i * xStep;
+        const y = 200 - (p.downloadMbps / maxDl) * 200;
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+
+      const ulPath = summary.timeline.map((p: TimelinePoint, i: number) => {
+        const x = i * xStep;
+        const y = 200 - (p.uploadMbps / maxUl) * 200;
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+
+      const latPath = summary.timeline.map((p: TimelinePoint, i: number) => {
+        const x = i * xStep;
+        const y = 70 - (p.latencyMs / maxLat) * 70;
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+
+      throughputSvg.innerHTML = `
+        <defs>
+          <linearGradient id="chart-grad-dl" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:var(--brand);stop-opacity:0.2"/>
+            <stop offset="100%" style="stop-color:var(--brand);stop-opacity:0"/>
+          </linearGradient>
+          <linearGradient id="chart-grad-ul" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:var(--c-upload);stop-opacity:0.2"/>
+            <stop offset="100%" style="stop-color:var(--c-upload);stop-opacity:0"/>
+          </linearGradient>
+        </defs>
+        <path d="${dlPath} L1000,200 L0,200 Z" fill="url(#chart-grad-dl)" stroke="none"/>
+        <path d="${ulPath} L1000,200 L0,200 Z" fill="url(#chart-grad-ul)" stroke="none"/>
+        <path d="${dlPath}" fill="none" stroke="var(--brand)" stroke-width="2"/>
+        <path d="${ulPath}" fill="none" stroke="var(--c-upload)" stroke-width="2"/>
+      `;
+
+      latencySvg.innerHTML = `
+        <path d="${latPath} L1000,70 L0,70 Z" fill="rgba(63,185,80,0.1)" stroke="none"/>
+        <path d="${latPath}" fill="none" stroke="var(--c-latency)" stroke-width="2"/>
+      `;
+    }
+
+    function renderTimeline(records: SpeedtestRecord[], incidents: Incident[]) {
+      const strip = document.getElementById('timeline-strip')!;
+      const axis = document.getElementById('timeline-axis')!;
+      const meta = document.getElementById('timeline-meta')!;
+      const tooltip = document.getElementById('timeline-tooltip')!;
+      strip.innerHTML = '';
+      axis.innerHTML = '';
+
+      if (!records.length) return;
+
+      const sorted = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      const oldest = new Date(sorted[0].timestamp).getTime();
+      const newest = new Date(sorted[sorted.length - 1].timestamp).getTime();
+      const spanMs = newest - oldest || 1;
+
+      sorted.forEach(rec => {
+        const level = classifyRecord(rec);
+        const cell = document.createElement('div');
+        cell.className = `timeline-cell cell-${level}`;
+        
+        cell.addEventListener('mouseenter', () => {
+          tooltip.innerHTML = `<strong>${new Date(rec.timestamp).toLocaleString()}</strong><br>DL: ${rec.download.toFixed(1)} Mbps  UL: ${rec.upload.toFixed(1)} Mbps<br>Latency: ${rec.latency.toFixed(1)} ms  Jitter: ${rec.jitter.toFixed(2)} ms<br>Endpoint: ${rec.endpointName}`;
+          tooltip.style.display = 'block';
+        });
+        cell.addEventListener('mousemove', (e: MouseEvent) => {
+          tooltip.style.left = `${e.clientX + 12}px`;
+          tooltip.style.top = `${e.clientY - 8}px`;
+        });
+        cell.addEventListener('mouseleave', () => {
+          tooltip.style.display = 'none';
+        });
+        
+        strip.appendChild(cell);
+      });
+
+      const labelCount = 5;
+      for (let i = 0; i <= labelCount; i++) {
+        const ts = new Date(oldest + (spanMs * i) / labelCount);
+        const label = document.createElement('span');
+        label.textContent = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        axis.appendChild(label);
+      }
+
+      const critCount = incidents.filter(inc => inc.level === 'crit').length;
+      const warnCount = incidents.filter(inc => inc.level === 'warn').length;
+      if (incidents.length === 0) {
+        meta.textContent = 'No incidents';
+        meta.style.color = '#3fb950';
+      } else {
+        meta.textContent = `${incidents.length} incident${incidents.length !== 1 ? 's' : ''} — ${critCount} critical, ${warnCount} warning`;
+        meta.style.color = critCount > 0 ? '#f85149' : '#d29922';
+      }
+    }
+
+    function renderIncidents(incidents: Incident[]) {
+      const list = document.getElementById('incident-list')!;
+      list.innerHTML = '';
+
+      if (!incidents.length) {
+        list.innerHTML = '<div class="no-incidents">✓ No performance incidents detected in the selected window</div>';
+        return;
+      }
+
+      for (const inc of incidents) {
+        const start = new Date(inc.start);
+        const end = new Date(inc.end);
+        const durationMs = end.getTime() - start.getTime();
+        const durationStr = durationMs < 60_000 ? `${Math.round(durationMs / 1000)}s` : `${Math.round(durationMs / 60_000)}m`;
+
+        const isMulti = inc.start !== inc.end;
+        const timeStr = isMulti
+          ? `${start.toLocaleTimeString()} – ${end.toLocaleTimeString()}, ${start.toLocaleDateString()}`
+          : start.toLocaleString();
+
+        const metricTags = ['download', 'upload', 'latency', 'jitter'].map(m => {
+          const isAffected = inc.affectedMetrics.includes(m);
+          let valueStr = '';
+          if (m === 'download') valueStr = `DL ${inc.worstDownloadMbps.toFixed(1)}M`;
+          if (m === 'upload') valueStr = `UL ${inc.worstUploadMbps.toFixed(1)}M`;
+          if (m === 'latency') valueStr = `lat ${inc.worstLatencyMs.toFixed(1)}ms`;
+          if (m === 'jitter') valueStr = `jit ${inc.worstJitterMs.toFixed(2)}ms`;
+          return `<span class="incident-metric${isAffected ? ' affected' : ''}">${valueStr}</span>`;
+        }).join('');
+
+        const icon = inc.level === 'crit' ? '🔴' : '🟡';
+        const desc = inc.level === 'crit'
+          ? `Critical degradation — ${inc.affectedMetrics.join(', ')}`
+          : `Performance warning — ${inc.affectedMetrics.join(', ')}`;
+
+        const card = document.createElement('div');
+        card.className = `incident-card level-${inc.level}`;
+        card.innerHTML = `
+          <div class="incident-icon">${icon}</div>
+          <div class="incident-body">
+            <div class="incident-time">${timeStr}${isMulti ? ` · ${durationStr}` : ''}</div>
+            <div class="incident-desc">${desc}</div>
+            <div class="incident-metrics">${metricTags}</div>
+          </div>
+          <div class="incident-count">${inc.recordCount} test${inc.recordCount !== 1 ? 's' : ''}</div>
+        `;
+        list.appendChild(card);
+      }
+    }
+
+    function renderTable(records: SpeedtestRecord[]) {
+      const tbody = document.getElementById('results-body')!;
+      tbody.innerHTML = '';
+
+      const filteredRecords = selectedEndpoint === 'all' 
+        ? records 
+        : records.filter(r => r.endpointName === selectedEndpoint);
+
+      for (const rec of filteredRecords) {
+        const statusClass = !rec.success ? 'status-fail' : rec.latency > 15 ? 'status-warn' : 'status-ok';
+        const statusText = !rec.success ? '✗ Fail' : rec.latency > 15 ? '⚠ Slow' : '✓ OK';
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${new Date(rec.timestamp).toLocaleString()}</td>
+          <td>${rec.endpointName}</td>
+          <td>${rec.sessionID.substring(0, 8)}…</td>
+          <td>${rec.download.toFixed(2)}</td>
+          <td>${rec.upload.toFixed(2)}</td>
+          <td>${rec.latency.toFixed(2)}</td>
+          <td>${rec.downLoadedLatency.toFixed(2)}</td>
+          <td>${rec.upLoadedLatency.toFixed(2)}</td>
+          <td>${rec.jitter.toFixed(2)}</td>
+          <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        `;
+        tbody.appendChild(row);
+      }
+
+      const loadMoreBtn = document.getElementById('load-more')!;
+      loadMoreBtn.disabled = !currentCursor;
+    }
+
+    function renderEndpointPills(byEndpoint: Record<string, any>) {
+      const navRight = document.querySelector('.nav-right')!;
+      const existingPills = navRight.querySelectorAll('.ep-filter');
+      existingPills.forEach(p => p.remove());
+
+      for (const [name, data] of Object.entries(byEndpoint)) {
+        const pill = document.createElement('div');
+        pill.className = 'nav-pill ep-filter';
+        pill.dataset.ep = name;
+        pill.textContent = name;
+        navRight.appendChild(pill);
+      }
+
+      navRight.querySelectorAll('.ep-filter').forEach(pill => {
+        pill.addEventListener('click', () => {
+          navRight.querySelectorAll('.ep-filter').forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          selectedEndpoint = pill.dataset.ep || 'all';
+          renderTable(allRecords);
+        });
+      });
+    }
+
+    function updatePageMeta(summary: any) {
+      const meta = document.getElementById('page-meta')!;
+      meta.textContent = `${summary.totalRecords} records · ${summary.successRate >= 1 ? '100%' : (summary.successRate * 100).toFixed(0)}% success`;
+    }
+
+    document.querySelectorAll('.time-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        selectedHours = parseInt(pill.dataset.hours || '24');
+        fetchData();
+      });
+    });
+
+    document.getElementById('load-more')?.addEventListener('click', async () => {
+      if (!currentCursor) return;
+      try {
+        const res = await fetch(`/api/results?limit=100&cursor=${currentCursor}`);
+        const data = await res.json();
+        allRecords = allRecords.concat(data.records);
+        currentCursor = data.cursor;
+        renderTable(allRecords);
+      } catch (err) {
+        console.error('Failed to load more:', err);
+      }
+    });
+
+    setInterval(fetchData, 60000);
+    fetchData();
+  </script>
+</Layout>
