@@ -149,7 +149,7 @@ export async function handleSummary(
   }
 
   const params = new URLSearchParams(url.search);
-  const hours = Math.min(parseInt(params.get("hours") || "24", 10), 720);
+  const hours = Math.min(parseInt(params.get("hours") || "24", 10), 8760);
   const noCache = params.get("no-cache") === "true";
 
   console.log(`[handleSummary] Query params: hours=${hours}, noCache=${noCache}`);

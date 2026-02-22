@@ -295,17 +295,17 @@ import Layout from '../layouts/Layout.astro';
             <div class="legend-item"><div class="legend-color" style="background:var(--c-upload)"></div> Upload</div>
           </div>
         </div>
-        <div class="throughput-chart">
-          <canvas id="throughput-chart" height="200"></canvas>
+        <div style="position:relative; height:200px; width:100%">
+          <canvas id="throughput-chart"></canvas>
         </div>
-        <div class="chart-header" style="margin-top: 12px; margin-bottom: 8px;">
+        <div class="chart-header" style="margin-top:16px; margin-bottom:8px;">
           <div class="chart-title">Latency Timeline</div>
           <div class="chart-legend">
             <div class="legend-item"><div class="legend-color" style="background:var(--c-latency)"></div> Latency</div>
           </div>
         </div>
-        <div class="latency-chart">
-          <canvas id="latency-chart" height="100"></canvas>
+        <div style="position:relative; height:100px; width:100%">
+          <canvas id="latency-chart"></canvas>
         </div>
       </div>
     </div>
@@ -355,9 +355,12 @@ import Layout from '../layouts/Layout.astro';
   </main>
 
   <script>
+    declare var Chart: any;
+
     interface TimelinePoint { hour: string; downloadMbps: number; uploadMbps: number; latencyMs: number; jitterMs: number; count: number; }
     interface SpeedtestRecord { timestamp: string; sessionID: string; endpoint: string; endpointName: string; success: boolean; download: number; upload: number; latency: number; jitter: number; downLoadedLatency: number; downLoadedJitter: number; upLoadedLatency: number; upLoadedJitter: number; }
     interface Incident { start: string; end: string; level: string; affectedMetrics: string[]; recordCount: number; worstDownloadMbps: number; worstUploadMbps: number; worstLatencyMs: number; worstJitterMs: number; }
+    interface EndpointSummary { name: string; count: number; avg: { downloadMbps: number; uploadMbps: number; latencyMs: number; jitterMs: number } }
 
     const THRESHOLDS = {
       download: { warn: 50, crit: 25 },
@@ -393,27 +396,33 @@ import Layout from '../layouts/Layout.astro';
     }
 
     async function fetchData() {
+      const meta = document.getElementById('page-meta');
+      if (meta) meta.textContent = 'Loading...';
       try {
         const [summaryRes, resultsRes] = await Promise.all([
-          fetch(`/api/summary?hours=${selectedHours}`),
-          fetch(`/api/results?limit=${selectedLimit}`)
+          fetch(`/api/summary?hours=${selectedHours}&no-cache=true`),
+          fetch(`/api/results?limit=200`)
         ]);
+
+        if (!summaryRes.ok) throw new Error(`Summary: ${summaryRes.status}`);
+        if (!resultsRes.ok) throw new Error(`Results: ${resultsRes.status}`);
 
         const summary = await summaryRes.json();
         const results = await resultsRes.json();
 
-        allRecords = results.records;
+        allRecords = results.records || [];
         serverCursor = results.cursor || null;
         displayedCount = 10;
 
         renderKpiCards(summary);
         renderCharts(summary);
-        renderIncidents(summary.incidents);
-        renderEndpoints(summary.byEndpoint);
+        renderIncidents(summary.incidents || []);
+        renderEndpoints(summary.byEndpoint || {});
         renderTable();
         updatePageMeta(summary);
       } catch (err) {
-        console.error('Failed to fetch data:', err);
+        console.error('fetchData error:', err);
+        if (meta) meta.textContent = `Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
       }
     }
 
@@ -445,40 +454,108 @@ import Layout from '../layouts/Layout.astro';
     }
 
     function renderCharts(summary) {
+      if (typeof Chart === 'undefined') {
+        console.warn('Chart.js not loaded yet');
+        return;
+      }
+
       const tl = summary.timeline || [];
-      const labels = tl.map(p => new Date(p.hour).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+      if (tl.length === 0) return;
+
+      const throughputCanvas = document.getElementById('throughput-chart') as HTMLCanvasElement;
+      const latencyCanvas = document.getElementById('latency-chart') as HTMLCanvasElement;
+
+      if (!throughputCanvas || !latencyCanvas) return;
+
+      const labels = tl.map(p => {
+        const d = new Date(p.hour);
+        return d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' ' +
+               d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      });
 
       const chartDefaults = {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#222',
+            titleColor: '#d0d0d0',
+            bodyColor: '#888',
+            borderColor: '#2e2e2e',
+            borderWidth: 1,
+          }
+        },
         scales: {
-          x: { ticks: { color: '#888', font: { family: 'monospace', size: 10 } }, grid: { color: '#2e2e2e' } },
-          y: { ticks: { color: '#888', font: { family: 'monospace', size: 10 } }, grid: { color: '#2e2e2e' } }
+          x: {
+            ticks: { color: '#888', font: { family: 'monospace', size: 10 }, maxTicksLimit: 8 },
+            grid: { color: '#2e2e2e' }
+          },
+          y: {
+            ticks: { color: '#888', font: { family: 'monospace', size: 10 } },
+            grid: { color: '#2e2e2e' },
+            beginAtZero: true
+          }
         }
       };
 
-      if (throughputChart) throughputChart.destroy();
-      throughputChart = new Chart(document.getElementById('throughput-chart'), {
+      if (throughputChart) { throughputChart.destroy(); throughputChart = null; }
+      if (latencyChart) { latencyChart.destroy(); latencyChart = null; }
+
+      throughputChart = new Chart(throughputCanvas.getContext('2d'), {
         type: 'line',
         data: {
           labels,
           datasets: [
-            { label: 'Download Mbps', data: tl.map(p => p.downloadMbps), borderColor: '#F48024', backgroundColor: 'rgba(244,128,36,0.1)', fill: true, tension: 0.3, pointRadius: 0 },
-            { label: 'Upload Mbps', data: tl.map(p => p.uploadMbps), borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3, pointRadius: 0 }
+            {
+              label: 'Download Mbps',
+              data: tl.map(p => p.downloadMbps),
+              borderColor: '#F48024',
+              backgroundColor: 'rgba(244,128,36,0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 0,
+              borderWidth: 2,
+            },
+            {
+              label: 'Upload Mbps',
+              data: tl.map(p => p.uploadMbps),
+              borderColor: '#58a6ff',
+              backgroundColor: 'rgba(88,166,255,0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 0,
+              borderWidth: 2,
+            }
           ]
         },
-        options: { ...chartDefaults, plugins: { legend: { display: true, labels: { color: '#888' } } } }
+        options: {
+          ...chartDefaults,
+          plugins: {
+            ...chartDefaults.plugins,
+            legend: {
+              display: true,
+              labels: { color: '#888', font: { family: 'monospace', size: 11 }, boxWidth: 12 }
+            }
+          }
+        }
       });
 
-      if (latencyChart) latencyChart.destroy();
-      latencyChart = new Chart(document.getElementById('latency-chart'), {
+      latencyChart = new Chart(latencyCanvas.getContext('2d'), {
         type: 'line',
         data: {
           labels,
-          datasets: [
-            { label: 'Latency ms', data: tl.map(p => p.latencyMs), borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', fill: true, tension: 0.3, pointRadius: 0 }
-          ]
+          datasets: [{
+            label: 'Latency ms',
+            data: tl.map(p => p.latencyMs),
+            borderColor: '#3fb950',
+            backgroundColor: 'rgba(63,185,80,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+          }]
         },
         options: chartDefaults
       });
@@ -534,24 +611,28 @@ import Layout from '../layouts/Layout.astro';
       }
     }
 
-    function renderEndpoints(byEndpoint) {
+    function renderEndpoints(byEndpoint: Record<string, EndpointSummary>) {
       const tbody = document.getElementById('endpoint-tbody');
+      if (!tbody) return;
       tbody.innerHTML = '';
 
-      if (!byEndpoint || Object.keys(byEndpoint).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--lo);text-align:center;padding:12px">No endpoint data</td></tr>';
+      const entries = Object.values(byEndpoint || {}) as EndpointSummary[];
+      if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--lo);padding:16px">No endpoint data</td></tr>';
         return;
       }
 
-      for (const [key, endpoint] of Object.entries(byEndpoint)) {
+      entries.sort((a, b) => b.count - a.count);
+
+      for (const ep of entries) {
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td style="padding:6px 8px">${endpoint.name}</td>
-          <td style="padding:6px 8px">${endpoint.count}</td>
-          <td style="padding:6px 8px">${endpoint.avg.downloadMbps.toFixed(1)}</td>
-          <td style="padding:6px 8px">${endpoint.avg.uploadMbps.toFixed(1)}</td>
-          <td style="padding:6px 8px">${endpoint.avg.latencyMs.toFixed(1)}</td>
-          <td style="padding:6px 8px">${endpoint.avg.jitterMs.toFixed(2)}</td>
+          <td style="color:var(--hi)">${ep.name}</td>
+          <td>${ep.count}</td>
+          <td>${ep.avg.downloadMbps.toFixed(1)} Mbps</td>
+          <td>${ep.avg.uploadMbps.toFixed(1)} Mbps</td>
+          <td>${ep.avg.latencyMs.toFixed(1)} ms</td>
+          <td>${ep.avg.jitterMs.toFixed(2)} ms</td>
         `;
         tbody.appendChild(row);
       }
@@ -589,7 +670,7 @@ import Layout from '../layouts/Layout.astro';
     }
 
     function updateLoadMoreBtn(filtered) {
-      const btn = document.getElementById('load-more');
+      const btn = document.getElementById('load-more') as HTMLButtonElement;
       const hasMoreLocal  = filtered.length > displayedCount;
       const hasMoreServer = !!serverCursor;
       btn.disabled = !hasMoreLocal && !hasMoreServer;
@@ -609,20 +690,22 @@ import Layout from '../layouts/Layout.astro';
     }
 
     document.querySelectorAll('.count-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
+      const pillEl = pill as HTMLElement;
+      pillEl.addEventListener('click', () => {
         document.querySelectorAll('.count-pill').forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        selectedLimit = parseInt(pill.dataset.limit || '100');
+        pillEl.classList.add('active');
+        selectedLimit = parseInt(pillEl.dataset.limit || '100');
         fetchData();
       });
     });
 
     document.querySelectorAll('.time-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
+      const pillEl = pill as HTMLElement;
+      pillEl.addEventListener('click', () => {
         document.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
         document.getElementById('custom-pill')?.classList.remove('active');
-        pill.classList.add('active');
-        selectedHours = parseInt(pill.dataset.hours || '24', 10);
+        pillEl.classList.add('active');
+        selectedHours = parseInt(pillEl.dataset.hours || '24', 10);
         document.getElementById('custom-from').style.display = 'none';
         document.getElementById('custom-to').style.display = 'none';
         fetchData();
@@ -632,16 +715,16 @@ import Layout from '../layouts/Layout.astro';
     document.getElementById('custom-pill')?.addEventListener('click', () => {
       document.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
       document.getElementById('custom-pill')?.classList.add('active');
-      const fromInput = document.getElementById('custom-from');
-      const toInput = document.getElementById('custom-to');
+      const fromInput = document.getElementById('custom-from') as HTMLInputElement;
+      const toInput = document.getElementById('custom-to') as HTMLInputElement;
       fromInput.style.display = 'inline-block';
       toInput.style.display = 'inline-block';
       fromInput.showPicker?.();
     });
 
     function applyCustomDateRange() {
-      const fromInput = document.getElementById('custom-from');
-      const toInput = document.getElementById('custom-to');
+      const fromInput = document.getElementById('custom-from') as HTMLInputElement;
+      const toInput = document.getElementById('custom-to') as HTMLInputElement;
       if (fromInput.value && toInput.value) {
         const fromDate = new Date(fromInput.value);
         const toDate = new Date(toInput.value);
@@ -669,7 +752,7 @@ import Layout from '../layouts/Layout.astro';
       }
 
       if (!serverCursor) return;
-      const btn = document.getElementById('load-more');
+      const btn = document.getElementById('load-more') as HTMLButtonElement;
       btn.disabled = true;
       btn.textContent = 'Loading…';
       try {
