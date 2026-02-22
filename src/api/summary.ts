@@ -335,18 +335,6 @@ export async function handleSummary(
       };
     }
 
-    const hourGroups = groupByHour(records);
-    const timeline = Object.entries(hourGroups)
-      .map(([hour, recs]) => ({
-        hour,
-        downloadMbps: Math.round((recs.reduce((a, b) => a + b.download, 0) / recs.length) * 100) / 100,
-        uploadMbps: Math.round((recs.reduce((a, b) => a + b.upload, 0) / recs.length) * 100) / 100,
-        latencyMs: Math.round((recs.reduce((a, b) => a + b.latency, 0) / recs.length) * 100) / 100,
-        jitterMs: Math.round((recs.reduce((a, b) => a + b.jitter, 0) / recs.length) * 100) / 100,
-        count: recs.length,
-      }))
-      .sort((a, b) => a.hour.localeCompare(b.hour));
-
     const successCount = records.filter((r) => r.success).length;
     const successRate = records.length > 0 ? successCount / records.length : 1.0;
 
@@ -356,12 +344,12 @@ export async function handleSummary(
     const response = jsonResponse({
       totalRecords: records.length,
       timeRangeHours: hours,
+      records,
       avg,
       p50,
       p95,
       p99,
       byEndpoint,
-      timeline,
       successRate,
       incidents,
       incidentCount: incidents.length,

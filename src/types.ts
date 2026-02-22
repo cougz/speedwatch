@@ -28,6 +28,7 @@ export interface SpeedtestRecord {
 export interface SummaryResponse {
   totalRecords: number;
   timeRangeHours: number;
+  records: SpeedtestRecord[];
   avg: MetricSet;
   p50: MetricSet;
   p95: MetricSet;

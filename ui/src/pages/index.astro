@@ -448,6 +448,7 @@ import Layout from '../layouts/Layout.astro';
     interface SpeedtestRecord { timestamp: string; sessionID: string; endpoint: string; endpointName: string; success: boolean; download: number; upload: number; latency: number; jitter: number; downLoadedLatency: number; downLoadedJitter: number; upLoadedLatency: number; upLoadedJitter: number; }
     interface Incident { start: string; end: string; level: string; affectedMetrics: string[]; recordCount: number; worstDownloadMbps: number; worstUploadMbps: number; worstLatencyMs: number; worstJitterMs: number; }
     interface EndpointSummary { name: string; count: number; avg: { downloadMbps: number; uploadMbps: number; latencyMs: number; jitterMs: number } }
+    interface SummaryResponse { totalRecords: number; timeRangeHours: number; records: SpeedtestRecord[]; avg: any; p50: any; p95: any; p99: any; byEndpoint: any; successRate: number; incidents: any; incidentCount: number; }
 
     let selectedLimit = 100;
     let selectedEndpoint = 'all';
@@ -487,6 +488,32 @@ import Layout from '../layouts/Layout.astro';
 
     let throughputChart = null;
     let latencyChart = null;
+
+    function recordsToTimeline(records: SpeedtestRecord[]): TimelinePoint[] {
+      if (records.length === 0) return [];
+
+      // Group by hour for timeline
+      const hourGroups: Record<string, SpeedtestRecord[]> = {};
+      for (const rec of records) {
+        const date = new Date(rec.timestamp);
+        const hourKey = new Date(
+          Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours())
+        ).toISOString();
+        if (!hourGroups[hourKey]) hourGroups[hourKey] = [];
+        hourGroups[hourKey].push(rec);
+      }
+
+      return Object.entries(hourGroups)
+        .map(([hour, recs]) => ({
+          hour,
+          downloadMbps: Math.round((recs.reduce((a, b) => a + b.download, 0) / recs.length) * 100) / 100,
+          uploadMbps: Math.round((recs.reduce((a, b) => a + b.upload, 0) / recs.length) * 100) / 100,
+          latencyMs: Math.round((recs.reduce((a, b) => a + b.latency, 0) / recs.length) * 100) / 100,
+          jitterMs: Math.round((recs.reduce((a, b) => a + b.jitter, 0) / recs.length) * 100) / 100,
+          count: recs.length,
+        }))
+        .sort((a, b) => a.hour.localeCompare(b.hour));
+    }
 
     function timelineToPath(points: TimelinePoint[], metric: keyof TimelinePoint, w: number, h: number): string {
       const values = points.map(p => Number(p[metric]));
@@ -535,10 +562,10 @@ import Layout from '../layouts/Layout.astro';
         if (!summaryRes.ok) throw new Error(`Summary: ${summaryRes.status}`);
         if (!resultsRes.ok) throw new Error(`Results: ${resultsRes.status}`);
 
-        const summary = await summaryRes.json();
+        const summary: SummaryResponse = await summaryRes.json();
         const results = await resultsRes.json();
 
-        allRecords = results.records || [];
+        allRecords = summary.records || [];
         serverCursor = results.cursor || null;
         displayedCount = 10;
 
@@ -554,7 +581,7 @@ import Layout from '../layouts/Layout.astro';
       }
     }
 
-    function renderKpiCards(summary: any) {
+    function renderKpiCards(summary: SummaryResponse) {
       const updateKpi = (id: string, value: number, delta: number, p95Value: number) => {
         const el = document.getElementById(id);
         const deltaEl = document.getElementById(`${id}-delta`);
@@ -568,21 +595,25 @@ import Layout from '../layouts/Layout.astro';
       updateKpi('kpi-latency', summary.avg.latencyMs, 0, summary.p95.latencyMs);
       updateKpi('kpi-jitter', summary.avg.jitterMs, 0, summary.p95.jitterMs);
 
-      const sparkPath = timelineToPath(summary.timeline, 'downloadMbps', 200, 36);
+      // Aggregate records to timeline for KPI sparklines
+      const timeline = recordsToTimeline(summary.records || []);
+
+      const sparkPath = timelineToPath(timeline, 'downloadMbps', 200, 36);
       document.getElementById('sparkline-download').setAttribute('d', sparkPath + ' L200,36 L0,36 Z');
 
-      const sparkUploadPath = timelineToPath(summary.timeline, 'uploadMbps', 200, 36);
+      const sparkUploadPath = timelineToPath(timeline, 'uploadMbps', 200, 36);
       document.getElementById('sparkline-upload').setAttribute('d', sparkUploadPath + ' L200,36 L0,36 Z');
 
-      const sparkLatPath = timelineToPath(summary.timeline, 'latencyMs', 200, 36);
+      const sparkLatPath = timelineToPath(timeline, 'latencyMs', 200, 36);
       document.getElementById('sparkline-latency').setAttribute('d', sparkLatPath + ' L200,36 L0,36 Z');
 
-      const sparkJitPath = timelineToPath(summary.timeline, 'jitterMs', 200, 36);
+      const sparkJitPath = timelineToPath(timeline, 'jitterMs', 200, 36);
       document.getElementById('sparkline-jitter').setAttribute('d', sparkJitPath + ' L200,36 L0,36 Z');
     }
 
-    function renderCharts(summary) {
-      const tl = summary.timeline || [];
+    function renderCharts(summary: SummaryResponse) {
+      // Aggregate records to timeline with adaptive downsampling based on time range
+      const tl = recordsToTimeline(summary.records || []);
       if (tl.length === 0) return;
       if (typeof Chart === 'undefined') return;
 
@@ -597,6 +628,13 @@ import Layout from '../layouts/Layout.astro';
                d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
       });
 
+      // Calculate target number of data points based on time range
+      const targetPoints = summary.timeRangeHours <= 1 ? 60 :  // 1 point/minute
+                            summary.timeRangeHours <= 6 ? 30 :   // 1 point/2min
+                            20;                    // 1 point/3min default
+
+      const samplingThreshold = Math.max(2, Math.floor(tl.length / targetPoints));
+
       const chartDefaults = {
         responsive: true,
         maintainAspectRatio: false,
@@ -609,6 +647,11 @@ import Layout from '../layouts/Layout.astro';
             bodyColor: '#888',
             borderColor: '#2e2e2e',
             borderWidth: 1,
+          },
+          sampling: {
+            enabled: true,
+            threshold: samplingThreshold,
+            algorithm: 'min-max',
           }
         },
         scales: {
