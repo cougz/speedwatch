@@ -89,7 +89,7 @@ import Layout from '../layouts/Layout.astro';
     }
 
     .kpi-card {
-      background: var(--s1); border: 1px solid var(--s3);
+      background: var(--bg-secondary); border: 1px solid var(--border-color);
       border-radius: 12px; padding: 18px 20px;
       position: relative; overflow: hidden;
       transition: border-color 0.2s ease, transform 0.2s ease;
@@ -99,11 +99,11 @@ import Layout from '../layouts/Layout.astro';
       content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
       background: var(--card-accent);
     }
-    .kpi-card:hover { border-color: var(--s4); transform: translateY(-1px); }
+    .kpi-card:hover { border-color: var(--border-color); transform: translateY(-1px); }
 
     .kpi-label {
       font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
-      color: var(--lo); margin-bottom: 6px;
+      color: var(--text-muted); margin-bottom: 6px;
     }
 
     .kpi-value {
@@ -121,7 +121,7 @@ import Layout from '../layouts/Layout.astro';
     }
 
     .kpi-delta {
-      font-size: 11px; color: var(--lo); font-family: var(--mono);
+      font-size: 11px; color: var(--text-muted); font-family: var(--mono);
     }
 
     .kpi-sparkline { height: 36px; margin-top: 8px; }
@@ -131,7 +131,7 @@ import Layout from '../layouts/Layout.astro';
     }
     .no-incidents {
       display: flex; align-items: center; gap: 10px;
-      background: var(--s1); border: 1px solid var(--s3);
+      background: var(--bg-secondary); border: 1px solid var(--border-color);
       border-radius: 10px; padding: 14px 16px; font-size: 13px;
       color: #3fb950; font-weight: 500;
     }
@@ -142,7 +142,7 @@ import Layout from '../layouts/Layout.astro';
     }
 
     .chart-card {
-      background: var(--s1); border: 1px solid var(--s3);
+      background: var(--bg-secondary); border: 1px solid var(--border-color);
       border-radius: 12px; padding: 16px 20px;
     }
 
@@ -151,12 +151,12 @@ import Layout from '../layouts/Layout.astro';
       margin-bottom: 12px;
     }
     .chart-title { font-size: 13px; font-weight: 600; color: var(--md); }
-    .chart-legend { display: flex; gap: 12px; font-size: 11px; color: var(--lo); }
+    .chart-legend { display: flex; gap: 12px; font-size: 11px; color: var(--text-muted); }
     .legend-item { display: flex; align-items: center; gap: 4px; }
     .legend-color { width: 8px; height: 8px; border-radius: 2px; }
 
     .table-card {
-      background: var(--s1); border: 1px solid var(--s3);
+      background: var(--bg-secondary); border: 1px solid var(--border-color);
       border-radius: 12px; padding: 16px 20px;
     }
 
@@ -167,14 +167,14 @@ import Layout from '../layouts/Layout.astro';
     }
     th {
       text-align: left; padding: 8px 12px; font-weight: 500;
-      color: var(--lo); border-bottom: 1px solid var(--s3);
-      position: sticky; top: 0; background: var(--s1);
+      color: var(--text-muted); border-bottom: 1px solid var(--border-color);
+      position: sticky; top: 0; background: var(--bg-secondary);
     }
     td {
-      padding: 8px 12px; border-bottom: 1px solid var(--s3);
+      padding: 8px 12px; border-bottom: 1px solid var(--border-color);
       color: var(--md);
     }
-    tr:hover td { background: var(--s2); }
+    tr:hover td { background: var(--bg-tertiary); }
     tr.hidden { display: none; }
 
     .status-badge {
@@ -187,12 +187,12 @@ import Layout from '../layouts/Layout.astro';
 
     .load-more-btn {
       display: block; width: 100%; padding: 12px;
-      background: var(--s2); border: 1px solid var(--s3);
+      background: var(--bg-tertiary); border: 1px solid var(--border-color);
       border-radius: 8px; color: var(--md); font-size: 12px;
       font-weight: 500; cursor: pointer; transition: all 0.15s ease;
       margin-top: 12px;
     }
-    .load-more-btn:hover { background: var(--s3); color: var(--hi); }
+    .load-more-btn:hover { background: var(--border-color); color: var(--hi); }
     .load-more-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     @media (max-width: 600px) {
@@ -336,8 +336,8 @@ import Layout from '../layouts/Layout.astro';
           ">0</span>
         </div>
         <div style="display:flex; align-items:center; gap:10px">
-          <div id="incidents-toggle-label" style="font-size:11px; color:var(--lo); font-family:var(--mono)">Show</div>
-          <div id="incidents-chevron" style="color:var(--lo); font-size:14px; transition:transform 0.2s">▼</div>
+          <div id="incidents-toggle-label" style="font-size:11px; color:var(--text-muted); font-family:var(--mono)">Show</div>
+          <div id="incidents-chevron" style="color:var(--text-muted); font-size:14px; transition:transform 0.2s">▼</div>
         </div>
       </div>
       <div id="incident-list" style="display:none; margin-top:12px"></div>
@@ -719,8 +719,8 @@ import Layout from '../layouts/Layout.astro';
           const card = document.createElement('div');
           card.className = `incident-card level-${inc.level}`;
           card.style.cssText = `
-            background: var(--s2);
-            border: 1px solid var(--s3);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
             border-left: 3px solid ${inc.level === 'crit' ? '#f85149' : '#d29922'};
             border-radius: 10px;
             padding: 14px 16px;
@@ -730,22 +730,22 @@ import Layout from '../layouts/Layout.astro';
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px">
               <div>
                 <span style="font-size:13px; font-weight:600; color:${levelColor}">${levelLabel}</span>
-                <span style="font-size:12px; color:var(--lo); margin-left:8px">— ${affectedStr}</span>
+                <span style="font-size:12px; color:var(--text-muted); margin-left:8px">— ${affectedStr}</span>
               </div>
-              <span style="font-size:11px; color:var(--lo); font-family:var(--mono); white-space:nowrap; margin-left:16px">
+              <span style="font-size:11px; color:var(--text-muted); font-family:var(--mono); white-space:nowrap; margin-left:16px">
                 ${inc.recordCount} test${inc.recordCount !== 1 ? 's' : ''}${isMulti ? ` · ${durationStr}` : ''}
               </span>
             </div>
-            <div style="font-size:11px; color:var(--lo); font-family:var(--mono); margin-bottom:12px">${timeStr}</div>
+            <div style="font-size:11px; color:var(--text-muted); font-family:var(--mono); margin-bottom:12px">${timeStr}</div>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:8px">
               ${metrics.map(m => `
                 <div style="
-                  background: var(--s1);
-                  border: 1px solid ${m.affected ? (inc.level === 'crit' ? 'rgba(248,81,73,0.3)' : 'rgba(210,153,34,0.3)') : 'var(--s3)'};
+                  background: var(--bg-secondary);
+                  border: 1px solid ${m.affected ? (inc.level === 'crit' ? 'rgba(248,81,73,0.3)' : 'rgba(210,153,34,0.3)') : 'var(--border-color)'};
                   border-radius: 8px;
                   padding: 8px 10px;
                 ">
-                  <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--lo); margin-bottom:4px">${m.label}</div>
+                  <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin-bottom:4px">${m.label}</div>
                   <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${m.affected ? (inc.level === 'crit' ? '#f85149' : '#d29922') : 'var(--md)'}">${m.value}</div>
                 </div>
               `).join('')}
@@ -767,7 +767,7 @@ import Layout from '../layouts/Layout.astro';
 
       const entries = Object.values(byEndpoint || {}) as EndpointSummary[];
       if (entries.length === 0) {
-        wrapper.innerHTML = '<div style="text-align:center;color:var(--lo);padding:24px;font-size:13px">No endpoint data</div>';
+        wrapper.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px">No endpoint data</div>';
         return;
       }
 
@@ -788,21 +788,21 @@ import Layout from '../layouts/Layout.astro';
 
         const dlColor = dlLevel === 'crit' ? '#f85149' : dlLevel === 'warn' ? '#d29922' : 'var(--brand)';
         const dlBg = dlLevel === 'crit' ? 'rgba(248,81,73,0.1)' : dlLevel === 'warn' ? 'rgba(210,153,34,0.1)' : 'transparent';
-        const dlBorder = dlLevel === 'crit' ? '#f85149' : dlLevel === 'warn' ? '#d29922' : 'var(--s3)';
+        const dlBorder = dlLevel === 'crit' ? '#f85149' : dlLevel === 'warn' ? '#d29922' : 'var(--border-color)';
         const ulColor = ulLevel === 'crit' ? '#f85149' : ulLevel === 'warn' ? '#d29922' : '#58a6ff';
         const ulBg = ulLevel === 'crit' ? 'rgba(248,81,73,0.1)' : ulLevel === 'warn' ? 'rgba(210,153,34,0.1)' : 'transparent';
-        const ulBorder = ulLevel === 'crit' ? '#f85149' : ulLevel === 'warn' ? '#d29922' : 'var(--s3)';
+        const ulBorder = ulLevel === 'crit' ? '#f85149' : ulLevel === 'warn' ? '#d29922' : 'var(--border-color)';
         const latColor = latLevel === 'crit' ? '#f85149' : latLevel === 'warn' ? '#d29922' : '#3fb950';
         const latBg = latLevel === 'crit' ? 'rgba(248,81,73,0.1)' : latLevel === 'warn' ? 'rgba(210,153,34,0.1)' : 'transparent';
-        const latBorder = latLevel === 'crit' ? '#f85149' : latLevel === 'warn' ? '#d29922' : 'var(--s3)';
+        const latBorder = latLevel === 'crit' ? '#f85149' : latLevel === 'warn' ? '#d29922' : 'var(--border-color)';
         const jitColor = jitLevel === 'crit' ? '#f85149' : jitLevel === 'warn' ? '#d29922' : '#bc8cff';
         const jitBg = jitLevel === 'crit' ? 'rgba(248,81,73,0.1)' : jitLevel === 'warn' ? 'rgba(210,153,34,0.1)' : 'transparent';
-        const jitBorder = jitLevel === 'crit' ? '#f85149' : jitLevel === 'warn' ? '#d29922' : 'var(--s3)';
+        const jitBorder = jitLevel === 'crit' ? '#f85149' : jitLevel === 'warn' ? '#d29922' : 'var(--border-color)';
 
         const card = document.createElement('div');
         card.style.cssText = `
-          background: var(--s2);
-          border: 1px solid var(--s3);
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-color);
           border-radius: 10px;
           padding: 14px 16px;
           margin-bottom: 10px;
@@ -810,27 +810,27 @@ import Layout from '../layouts/Layout.astro';
         card.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
             <div style="font-size:13px; font-weight:600; color:var(--hi); font-family:var(--mono)">${ep.name}</div>
-            <div style="font-size:11px; color:var(--lo); font-family:var(--mono)">${ep.count} test${ep.count !== 1 ? 's' : ''}</div>
+            <div style="font-size:11px; color:var(--text-muted); font-family:var(--mono)">${ep.count} test${ep.count !== 1 ? 's' : ''}</div>
           </div>
-          <div style="height:3px; background:var(--s3); border-radius:2px; margin-bottom:12px; overflow:hidden">
+          <div style="height:3px; background:var(--border-color); border-radius:2px; margin-bottom:12px; overflow:hidden">
             <div style="height:100%; width:${barPct}%; background:var(--brand); border-radius:2px; transition:width 0.4s ease"></div>
           </div>
           <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px">
             <div style="background:${dlBg}; border:1px solid ${dlBorder}; border-radius:8px; padding:8px 10px">
-              <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--lo); margin-bottom:4px">Download</div>
-              <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${dlColor}">${ep.avg.downloadMbps.toFixed(1)} <span style="font-size:10px;font-weight:400;color:var(--lo)">Mbps</span></div>
+              <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin-bottom:4px">Download</div>
+              <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${dlColor}">${ep.avg.downloadMbps.toFixed(1)} <span style="font-size:10px;font-weight:400;color:var(--text-muted)">Mbps</span></div>
             </div>
             <div style="background:${ulBg}; border:1px solid ${ulBorder}; border-radius:8px; padding:8px 10px">
-              <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--lo); margin-bottom:4px">Upload</div>
-              <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${ulColor}">${ep.avg.uploadMbps.toFixed(1)} <span style="font-size:10px;font-weight:400;color:var(--lo)">Mbps</span></div>
+              <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin-bottom:4px">Upload</div>
+              <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${ulColor}">${ep.avg.uploadMbps.toFixed(1)} <span style="font-size:10px;font-weight:400;color:var(--text-muted)">Mbps</span></div>
             </div>
             <div style="background:${latBg}; border:1px solid ${latBorder}; border-radius:8px; padding:8px 10px">
-              <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--lo); margin-bottom:4px">Latency</div>
-              <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${latColor}">${ep.avg.latencyMs.toFixed(1)} <span style="font-size:10px;font-weight:400;color:var(--lo)">ms</span></div>
+              <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin-bottom:4px">Latency</div>
+              <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${latColor}">${ep.avg.latencyMs.toFixed(1)} <span style="font-size:10px;font-weight:400;color:var(--text-muted)">ms</span></div>
             </div>
             <div style="background:${jitBg}; border:1px solid ${jitBorder}; border-radius:8px; padding:8px 10px">
-              <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--lo); margin-bottom:4px">Jitter</div>
-              <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${jitColor}">${ep.avg.jitterMs.toFixed(2)} <span style="font-size:10px;font-weight:400;color:var(--lo)">ms</span></div>
+              <div style="font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin-bottom:4px">Jitter</div>
+              <div style="font-size:13px; font-weight:600; font-family:var(--mono); color:${jitColor}">${ep.avg.jitterMs.toFixed(2)} <span style="font-size:10px;font-weight:400;color:var(--text-muted)">ms</span></div>
             </div>
           </div>
         `;
@@ -871,32 +871,32 @@ import Layout from '../layouts/Layout.astro';
         const jitBg = jitLevel === 'crit' ? 'rgba(248,81,73,0.15)' : jitLevel === 'warn' ? 'rgba(210,153,34,0.15)' : 'transparent';
 
         const row = document.createElement('tr');
-        row.style.cssText = `border-bottom: 1px solid var(--s3); transition: background 0.15s; ${!rec.success ? 'border-left: 3px solid #f85149;' : ''}`;
-        row.onmouseenter = () => row.style.background = 'var(--s2)';
+        row.style.cssText = `border-bottom: 1px solid var(--border-color); transition: background 0.15s; ${!rec.success ? 'border-left: 3px solid #f85149;' : ''}`;
+        row.onmouseenter = () => row.style.background = 'var(--bg-tertiary)';
         row.onmouseleave = () => row.style.background = '';
         row.innerHTML = `
-          <td style="padding:10px 12px; color:var(--lo); font-family:var(--mono); font-size:11px; white-space:nowrap">
+          <td style="padding:10px 12px; color:var(--text-muted); font-family:var(--mono); font-size:11px; white-space:nowrap">
             ${new Date(rec.timestamp).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})}
           </td>
           <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--hi)">${rec.endpointName}</td>
-          <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--lo)">${rec.sessionID.substring(0,8)}…</td>
+          <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--text-muted)">${rec.sessionID.substring(0,8)}…</td>
           <td style="padding:10px 12px; background:${dlBg}; border-radius:4px;">
             <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:${dlColor}">${rec.download.toFixed(1)}</span>
-            <span style="font-family:var(--mono); font-size:10px; color:var(--lo)"> Mbps</span>
+            <span style="font-family:var(--mono); font-size:10px; color:var(--text-muted)"> Mbps</span>
           </td>
           <td style="padding:10px 12px; background:${ulBg}; border-radius:4px;">
             <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:${ulColor}">${rec.upload.toFixed(1)}</span>
-            <span style="font-family:var(--mono); font-size:10px; color:var(--lo)"> Mbps</span>
+            <span style="font-family:var(--mono); font-size:10px; color:var(--text-muted)"> Mbps</span>
           </td>
           <td style="padding:10px 12px; background:${latBg}; border-radius:4px;">
             <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:${latColor}">${rec.latency.toFixed(1)}</span>
-            <span style="font-family:var(--mono); font-size:10px; color:var(--lo)"> ms</span>
+            <span style="font-family:var(--mono); font-size:10px; color:var(--text-muted)"> ms</span>
           </td>
-          <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--lo)">${rec.downLoadedLatency.toFixed(1)} ms</td>
-          <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--lo)">${rec.upLoadedLatency.toFixed(1)} ms</td>
+          <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--text-muted)">${rec.downLoadedLatency.toFixed(1)} ms</td>
+          <td style="padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--text-muted)">${rec.upLoadedLatency.toFixed(1)} ms</td>
           <td style="padding:10px 12px; background:${jitBg}; border-radius:4px;">
             <span style="font-family:var(--mono); font-size:12px; font-weight:600; color:${jitColor}">${rec.jitter.toFixed(2)}</span>
-            <span style="font-family:var(--mono); font-size:10px; color:var(--lo)"> ms</span>
+            <span style="font-family:var(--mono); font-size:10px; color:var(--text-muted)"> ms</span>
           </td>
         `;
         tbody.appendChild(row);
@@ -944,11 +944,11 @@ import Layout from '../layouts/Layout.astro';
         const fromInput = document.getElementById('custom-from') as HTMLInputElement;
         const toInput = document.getElementById('custom-to') as HTMLInputElement;
         fromInput.style.opacity = '0.35';
-        fromInput.style.color = 'var(--lo)';
+        fromInput.style.color = 'var(--text-muted)';
         fromInput.style.pointerEvents = 'none';
         fromInput.value = '';
         toInput.style.opacity = '0.35';
-        toInput.style.color = 'var(--lo)';
+        toInput.style.color = 'var(--text-muted)';
         toInput.style.pointerEvents = 'none';
         toInput.value = '';
         fetchData();
