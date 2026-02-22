@@ -635,7 +635,7 @@ import Layout from '../layouts/Layout.astro';
         return;
       }
 
-      entries.sort((a, b) => b.count - a.count);
+      entries.sort((a, b) => b.avg.downloadMbps - a.avg.downloadMbps);
       const maxDl = Math.max(...entries.map(e => e.avg.downloadMbps), 1);
 
       for (const ep of entries) {
