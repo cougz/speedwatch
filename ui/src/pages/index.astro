@@ -109,7 +109,37 @@ import Layout from '../layouts/Layout.astro';
 
     .timeline-strip-wrap {
       background: var(--s1); border: 1px solid var(--s3);
-      border-radius: 12px; padding: 16px 20px 12px; margin-bottom: 12px;
+      border-radius: 12px; padding: 16px 20px; margin-bottom: 12px;
+    }
+    .timeline-strip {
+      display: flex; gap: 2px; height: 28px; align-items: stretch;
+      margin-bottom: 6px; border-radius: 4px; overflow: hidden;
+    }
+    .timeline-cell {
+      flex: 1; min-width: 3px; border-radius: 2px; cursor: pointer;
+      transition: opacity 0.15s ease, transform 0.15s ease; position: relative;
+    }
+    .timeline-cell:hover { opacity: 0.85; transform: scaleY(1.15); }
+    .cell-ok { background: #3fb950; opacity: 0.6; }
+    .cell-warn { background: #d29922; opacity: 0.85; }
+    .cell-crit { background: #f85149; opacity: 1; }
+    .cell-missing { background: var(--s3); opacity: 0.4; }
+
+    .timeline-axis {
+      display: flex; justify-content: space-between;
+      font-size: 9px; font-family: var(--mono); color: var(--lo); padding: 0 1px;
+    }
+
+    .timeline-tooltip {
+      position: fixed; background: var(--s2); border: 1px solid var(--s3);
+      border-radius: 8px; padding: 8px 12px; font-size: 11px;
+      font-family: var(--mono); color: var(--md); pointer-events: none; z-index: 200;
+      display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      white-space: nowrap; line-height: 1.8;
+    }
+
+    .incident-list {
+      display: flex; flex-direction: column; gap: 8px; max-height: 270px; overflow-y: auto;
     }
     .timeline-strip {
       display: flex; gap: 2px; height: 28px; align-items: stretch;
@@ -262,16 +292,11 @@ import Layout from '../layouts/Layout.astro';
     <div class="nav-brand">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="12" cy="12" r="10" fill="#F48024"/>
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" fill="white"/>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59 8-8 8-3.59 8 8-3.59 8-8-8 8 8-3.59 0-1-13 0-1-1 1 0zm-1-13h2v2h2zm0 8h2v2h2zm0 0h2v2h2z" fill="white"/>
       </svg>
       SpeedWatch
     </div>
-      <div class="nav-right">
-      <div class="nav-pill live-pill">
-        <div class="live-dot"></div> Live
-      </div>
-      <div class="nav-pill count-pill" data-limit="10">10 tests</div>
-      <div class="nav-pill count-pill active" data-limit="100">100 tests</div>
+    <div class="nav-right">
       <div class="nav-pill ep-filter active" data-ep="all">All</div>
     </div>
   </nav>
@@ -345,10 +370,7 @@ import Layout from '../layouts/Layout.astro';
     </div>
 
     <section class="timeline-section">
-      <div class="section-header">
-        <div class="section-title">Performance Timeline</div>
-        <div class="section-meta" id="timeline-meta"></div>
-      </div>
+      <div class="section-title">Performance Timeline</div>
       <div class="timeline-strip-wrap">
         <div class="timeline-strip" id="timeline-strip"></div>
         <div class="timeline-axis" id="timeline-axis"></div>
@@ -558,7 +580,6 @@ import Layout from '../layouts/Layout.astro';
     function renderTimeline(records: SpeedtestRecord[], incidents: Incident[]) {
       const strip = document.getElementById('timeline-strip')!;
       const axis = document.getElementById('timeline-axis')!;
-      const meta = document.getElementById('timeline-meta')!;
       const tooltip = document.getElementById('timeline-tooltip')!;
       strip.innerHTML = '';
       axis.innerHTML = '';
@@ -603,13 +624,7 @@ import Layout from '../layouts/Layout.astro';
 
       const critCount = incidents.filter(inc => inc.level === 'crit').length;
       const warnCount = incidents.filter(inc => inc.level === 'warn').length;
-      if (incidents.length === 0) {
-        meta.textContent = 'No incidents';
-        meta.style.color = '#3fb950';
-      } else {
-        meta.textContent = `${incidents.length} incident${incidents.length !== 1 ? 's' : ''} — ${critCount} critical, ${warnCount} warning`;
-        meta.style.color = critCount > 0 ? '#f85149' : '#d29922';
-      }
+
     }
 
     function renderIncidents(incidents: Incident[]) {
