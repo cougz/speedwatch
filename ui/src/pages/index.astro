@@ -3,7 +3,6 @@ import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout title="SpeedWatch">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
   <style>
     :root {
       --c-upload: #58a6ff;
@@ -202,8 +201,8 @@ import Layout from '../layouts/Layout.astro';
       <div class="nav-pill time-pill" data-hours="168">7d</div>
       <div class="nav-pill time-pill" data-hours="8760">All</div>
       <div class="nav-pill" id="custom-pill">Custom</div>
-      <input type="date" id="custom-from" style="display:none;padding:4px 8px;font-size:11px;background:var(--s2);color:var(--md);border:1px solid var(--s3);border-radius:4px;">
-      <input type="date" id="custom-to" style="display:none;padding:4px 8px;font-size:11px;background:var(--s2);color:var(--md);border:1px solid var(--s3);border-radius:4px;">
+      <input type="date" id="custom-from" style="padding:4px 8px;font-size:11px;background:var(--s2);color:var(--lo);border:1px solid var(--s3);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
+      <input type="date" id="custom-to" style="padding:4px 8px;font-size:11px;background:var(--s2);color:var(--lo);border:1px solid var(--s3);border-radius:4px;opacity:0.35;pointer-events:none;transition:opacity 0.2s,color 0.2s;">
     </div>
   </nav>
 
@@ -320,15 +319,23 @@ import Layout from '../layouts/Layout.astro';
 
     <div class="chart-card" style="margin-bottom:24px">
       <div class="chart-title" style="margin-bottom:12px">Endpoint Breakdown</div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:monospace">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:monospace;table-layout:fixed;">
+        <colgroup>
+          <col style="width:30%">
+          <col style="width:10%">
+          <col style="width:15%">
+          <col style="width:15%">
+          <col style="width:15%">
+          <col style="width:15%">
+        </colgroup>
         <thead>
           <tr>
-            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Endpoint</th>
-            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Tests</th>
-            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Avg DL</th>
-            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Avg UL</th>
-            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Avg Latency</th>
-            <th style="text-align:left;padding:6px 8px;color:#888;border-bottom:1px solid #2e2e2e">Avg Jitter</th>
+            <th style="text-align:left;padding:8px 12px;color:#888;border-bottom:1px solid #2e2e2e">Endpoint</th>
+            <th style="text-align:left;padding:8px 12px;color:#888;border-bottom:1px solid #2e2e2e">Tests</th>
+            <th style="text-align:left;padding:8px 12px;color:#888;border-bottom:1px solid #2e2e2e">Avg DL</th>
+            <th style="text-align:left;padding:8px 12px;color:#888;border-bottom:1px solid #2e2e2e">Avg UL</th>
+            <th style="text-align:left;padding:8px 12px;color:#888;border-bottom:1px solid #2e2e2e">Avg Latency</th>
+            <th style="text-align:left;padding:8px 12px;color:#888;border-bottom:1px solid #2e2e2e">Avg Jitter</th>
           </tr>
         </thead>
         <tbody id="endpoint-tbody"></tbody>
@@ -737,8 +744,16 @@ import Layout from '../layouts/Layout.astro';
         document.getElementById('custom-pill')?.classList.remove('active');
         pillEl.classList.add('active');
         selectedHours = parseInt(pillEl.dataset.hours || '24', 10);
-        document.getElementById('custom-from').style.display = 'none';
-        document.getElementById('custom-to').style.display = 'none';
+        const fromInput = document.getElementById('custom-from') as HTMLInputElement;
+        const toInput = document.getElementById('custom-to') as HTMLInputElement;
+        fromInput.style.opacity = '0.35';
+        fromInput.style.color = 'var(--lo)';
+        fromInput.style.pointerEvents = 'none';
+        fromInput.value = '';
+        toInput.style.opacity = '0.35';
+        toInput.style.color = 'var(--lo)';
+        toInput.style.pointerEvents = 'none';
+        toInput.value = '';
         fetchData();
       });
     });
@@ -748,9 +763,13 @@ import Layout from '../layouts/Layout.astro';
       document.getElementById('custom-pill')?.classList.add('active');
       const fromInput = document.getElementById('custom-from') as HTMLInputElement;
       const toInput = document.getElementById('custom-to') as HTMLInputElement;
-      fromInput.style.display = 'inline-block';
-      toInput.style.display = 'inline-block';
-      fromInput.showPicker?.();
+      fromInput.style.opacity = '1';
+      fromInput.style.color = 'var(--hi)';
+      fromInput.style.pointerEvents = 'auto';
+      toInput.style.opacity = '1';
+      toInput.style.color = 'var(--hi)';
+      toInput.style.pointerEvents = 'auto';
+      fromInput.focus();
     });
 
     function applyCustomDateRange() {

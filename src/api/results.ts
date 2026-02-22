@@ -48,7 +48,7 @@ function filenameToTimestamp(filename: string): string {
 
 function endpointName(url: string): string {
   try {
-    return new URL(url).hostname.split(".")[0];
+    return new URL(url).hostname;
   } catch {
     return url;
   }
