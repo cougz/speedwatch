@@ -13,9 +13,17 @@
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",
-      "bucket_name": "grainau-speedtest-results"
+      "bucket_name": "YOUR_BUCKET_NAME_HERE"
     }
-  },
+  ],
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "YOUR_NAMESPACE_ID_HERE",
+      "simple": { "limit": 60, "period": 60 }
+    }
+  ],
+  "vars": {
     "R2_PREFIX": "speedtest-results/",
     "CACHE_TTL_SECONDS": "60",
     "MAX_RESULTS_PER_PAGE": "200"
