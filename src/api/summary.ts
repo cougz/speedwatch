@@ -176,8 +176,6 @@ export async function handleSummary(
       return filenameToTimestamp(filename) >= cutoffTime;
     });
 
-    const objectsInWindow = allObjects.filter((obj) => keyToTimestamp(obj.key) >= cutoffTime);
-
     const records: SpeedtestRecord[] = [];
     const batchSize = 50;
 

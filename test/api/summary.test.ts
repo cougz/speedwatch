@@ -41,14 +41,14 @@ describe("GET /api/summary", () => {
   beforeEach(() => {
     env = {
       ASSETS: {} as Fetcher,
-      RESULTS_BUCKET: {
+      R2_BUCKET: {
         list: vi.fn(),
         get: vi.fn(),
       } as unknown as R2Bucket,
       RATE_LIMITER: {
         limit: vi.fn().mockResolvedValue({ success: true }),
       } as unknown as RateLimit,
-      R2_PREFIX: "json-results/",
+      R2_PREFIX: "speedtest-results/",
       CACHE_TTL_SECONDS: "60",
       MAX_RESULTS_PER_PAGE: "200",
     };
@@ -58,12 +58,12 @@ describe("GET /api/summary", () => {
   });
 
   it("returns 200 with all expected fields", async () => {
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
-      objects: [{ key: "json-results/speedtest-2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 }],
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
+      objects: [{ key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 }],
       truncated: false,
       cursor: null,
     });
-    env.RESULTS_BUCKET.get = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.get = vi.fn().mockResolvedValue({
       text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
     });
 
@@ -85,16 +85,16 @@ describe("GET /api/summary", () => {
 
   it("byEndpoint keys match unique endpoints", async () => {
     const objects = [
-      { key: "json-results/speedtest-2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-      { key: "json-results/speedtest-2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+      { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
+      { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
     ];
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects,
       truncated: false,
       cursor: null,
     });
     let getCallCount = 0;
-    env.RESULTS_BUCKET.get = vi.fn().mockImplementation((key) => {
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key) => {
       getCallCount++;
       if (getCallCount === 1) {
         return Promise.resolve({
@@ -117,15 +117,15 @@ describe("GET /api/summary", () => {
   });
 
   it("timeline is sorted ascending by hour", async () => {
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "json-results/speedtest-2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "json-results/speedtest-2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.RESULTS_BUCKET.get = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.get = vi.fn().mockResolvedValue({
       text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
     });
 
@@ -139,15 +139,15 @@ describe("GET /api/summary", () => {
   });
 
   it("successRate computed correctly when some records fail", async () => {
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "json-results/speedtest-2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "json-results/speedtest-2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.RESULTS_BUCKET.get = vi.fn()
+    env.R2_BUCKET.get = vi.fn()
       .mockResolvedValueOnce({
         text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, success: true })),
       } as unknown as R2ObjectBody)
@@ -165,7 +165,7 @@ describe("GET /api/summary", () => {
   it("hours param correctly filters out old records", async () => {
     const now = Date.now();
     const oldTimestamp = new Date(now - 25 * 60 * 60 * 1000).toISOString();
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
         { key: `json-results/speedtest-${oldTimestamp.replace(/:/g, "-").replace(/\./g, "-")}.json`, uploaded: new Date(now - 26 * 60 * 60 * 1000), size: 500 },
         { key: `json-results/speedtest-${new Date(now - 1 * 60 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-")}.json`, uploaded: new Date(), size: 500 },
@@ -173,7 +173,7 @@ describe("GET /api/summary", () => {
       truncated: false,
       cursor: null,
     });
-    env.RESULTS_BUCKET.get = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.get = vi.fn().mockResolvedValue({
       text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
     });
 
@@ -184,15 +184,15 @@ describe("GET /api/summary", () => {
   });
 
   it("two consecutive warn records -> one warn incident", async () => {
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "json-results/speedtest-2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "json-results/speedtest-2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.RESULTS_BUCKET.get = vi.fn()
+    env.R2_BUCKET.get = vi.fn()
       .mockResolvedValueOnce({
         text: vi.fn().mockResolvedValue(JSON.stringify(mockSlowData)),
       } as unknown as R2ObjectBody)
@@ -210,16 +210,16 @@ describe("GET /api/summary", () => {
 
   it("crit record in middle of warn -> incident escalates to crit", async () => {
     const critData = { ...mockSlowData, result: { ...mockSlowData.result, download: 1000000, upload: 500000 } };
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "json-results/speedtest-2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "json-results/speedtest-2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "json-results/speedtest-2026-02-21T20-50-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-50-36-141Z.json", uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.RESULTS_BUCKET.get = vi.fn()
+    env.R2_BUCKET.get = vi.fn()
       .mockResolvedValueOnce({
         text: vi.fn().mockResolvedValue(JSON.stringify(mockSlowData)),
       } as unknown as R2ObjectBody)
@@ -239,16 +239,16 @@ describe("GET /api/summary", () => {
   });
 
   it("ok record between two warn records -> two separate incidents", async () => {
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "json-results/speedtest-2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "json-results/speedtest-2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "json-results/speedtest-2026-02-21T20-50-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-50-36-141Z.json", uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.RESULTS_BUCKET.get = vi.fn()
+    env.R2_BUCKET.get = vi.fn()
       .mockResolvedValueOnce({
         text: vi.fn().mockResolvedValue(JSON.stringify(mockSlowData)),
       } as unknown as R2ObjectBody)
@@ -267,15 +267,15 @@ describe("GET /api/summary", () => {
   });
 
   it("all ok records -> no incidents", async () => {
-    env.RESULTS_BUCKET.list = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "json-results/speedtest-2026-02-21T20-48-36-141Z.json", uploaded: new Date().toISOString(), size: 500 },
-        { key: "json-results/speedtest-2026-02-21T20-49-36-141Z.json", uploaded: new Date().toISOString(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date().toISOString(), size: 500 },
+        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date().toISOString(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.RESULTS_BUCKET.get = vi.fn().mockResolvedValue({
+    env.R2_BUCKET.get = vi.fn().mockResolvedValue({
       text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
     });
 

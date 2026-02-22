@@ -133,31 +133,49 @@ npm run typecheck   # TypeScript type checking
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `R2_PREFIX` | `"speedtest-results/"` | Prefix in R2 bucket where speedtest JSON files are stored (adjust if using subfolder or different naming) |
-| `CACHE_TTL_SECONDS` | `"60"` | Cache TTL for API responses (seconds) |
-| `MAX_RESULTS_PER_PAGE` | `"200"` | Maximum records per page in results API |
+| \`R2_PREFIX\` | \`"speedtest-results/"\` | Folder/prefix in R2 bucket where speedtest JSON files are stored (update to match your actual folder structure) |
+| \`CACHE_TTL_SECONDS\` | \`"60"\` | Cache TTL for API responses (seconds) |
+| \`MAX_RESULTS_PER_PAGE\` | \`"200"\` | Maximum records per page in results API |
 
-**Note:** `R2_PREFIX` should match the actual folder structure in your R2 bucket. If your files are directly in the bucket root, set `R2_PREFIX` to `""`.
+### R2 Bucket Binding
 
-### Rate Limiting
+The \`R2_BUCKET\` binding connects the Worker to your actual R2 bucket. The binding name is configured in \`wrangler.jsonc\`:
 
-- **Limit:** 60 requests per minute per IP
-- **Binding Name:** `RATE_LIMITER`
-- **Namespace:** `1001`
+\`\`\`jsonc
+"r2_buckets": [
+  {
+    "binding": "R2_BUCKET",
+    "bucket_name": "grainau-speedtest-results"
+  }
+]\`\`\`
 
-Adjust in `wrangler.jsonc` under `ratelimits` if needed.
+**To use a different bucket:**
 
+1. Update \`bucket_name\` in \`wrangler.jsonc\` under \`r2_buckets\`
+2. Commit and push (or let Workers Builds auto-deploy)
+
+**Important:** SpeedWatch does **not** automatically detect your bucket structure. The \`R2_PREFIX\` environment variable must be manually configured to match the actual folder structure in your R2 bucket:
+
+| Your Bucket Structure | \`R2_PREFIX\` Value |
+|----------------------|-------------------|
+| Files in subfolder \`speedtest-results/\` | \`"speedtest-results/"\` |
+| Files in subfolder \`json-results/\` | \`"json-results/"\` |
+| Files in subfolder \`results/\` | \`"results/"\` |
+| Files directly in bucket root | \`""\` (empty quotes) |
 ## R2 Bucket Data Format
 
-SpeedWatch expects JSON files in your R2 bucket. The actual location depends on your `R2_PREFIX` environment variable in `wrangler.jsonc`.
+SpeedWatch expects JSON files in your R2 bucket. The actual file location is determined by the `R2_PREFIX` environment variable in `wrangler.jsonc`.
 
 ### File Location
 
-If `R2_PREFIX` is set to `"speedtest-results/"`:
+**If `R2_PREFIX` is set to `"speedtest-results/"` (default):**
 - Full path: `speedtest-results/speedtest-2026-02-21T20-48-36-141Z.json`
 
-If `R2_PREFIX` is set to `""` (bucket root):
+**If `R2_PREFIX` is set to `""` (bucket root):**
 - Full path: `speedtest-2026-02-21T20-48-36-141Z.json`
+
+**If `R2_PREFIX` is set to a different subfolder:**
+- Update the value to match your actual folder structure
 
 ### File Naming
 
