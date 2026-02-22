@@ -13,6 +13,8 @@ export default defineWorkersConfig({
             R2_PREFIX: "json-results/",
             CACHE_TTL_SECONDS: "60",
             MAX_RESULTS_PER_PAGE: "200",
+            ANOMALY_WARN_THRESHOLD: "0.70",
+            ANOMALY_CRIT_THRESHOLD: "0.50",
           },
         },
       },

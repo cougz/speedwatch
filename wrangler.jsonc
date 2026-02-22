@@ -28,12 +28,8 @@
     "R2_PREFIX": "speedtest-results/",
     "CACHE_TTL_SECONDS": "60",
     "MAX_RESULTS_PER_PAGE": "200",
-    "ANOMALY_MIN_IQR": "0.1",
-    "ANOMALY_WARN_IQR_MULTIPLIER": "4",
-    "ANOMALY_CRIT_IQR_MULTIPLIER": "8",
-    "ENDPOINT_ANOMALY_MIN_IQR": "0.5",
-    "ENDPOINT_WARN_IQR_MULTIPLIER": "5",
-    "ENDPOINT_CRIT_IQR_MULTIPLIER": "10"
+    "ANOMALY_WARN_THRESHOLD": "0.70",
+    "ANOMALY_CRIT_THRESHOLD": "0.50"
   },
   "observability": {
     "logs": {
