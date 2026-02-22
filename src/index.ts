@@ -7,6 +7,24 @@ export default {
     const path = decodeURIComponent(new URL(req.url).pathname);
     if (path.startsWith("/api")) return handleApiRequest(req, env, ctx);
     if (path === "/llms.txt") return handleLlmsTxt();
+    if (path === "/api/config") return handleConfig(env);
     return env.ASSETS.fetch(req);
   },
 };
+
+function handleConfig(env: Env): Response {
+  const config = {
+    ANOMALY_MIN_IQR: env.ANOMALY_MIN_IQR,
+    ANOMALY_WARN_IQR_MULTIPLIER: env.ANOMALY_WARN_IQR_MULTIPLIER,
+    ANOMALY_CRIT_IQR_MULTIPLIER: env.ANOMALY_CRIT_IQR_MULTIPLIER,
+    ENDPOINT_ANOMALY_MIN_IQR: env.ENDPOINT_ANOMALY_MIN_IQR,
+    ENDPOINT_WARN_IQR_MULTIPLIER: env.ENDPOINT_WARN_IQR_MULTIPLIER,
+    ENDPOINT_CRIT_IQR_MULTIPLIER: env.ENDPOINT_CRIT_IQR_MULTIPLIER,
+  };
+  return new Response(JSON.stringify(config), {
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}

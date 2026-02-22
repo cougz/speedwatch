@@ -350,11 +350,16 @@ import Layout from '../layouts/Layout.astro';
     interface Incident { start: string; end: string; level: string; affectedMetrics: string[]; recordCount: number; worstDownloadMbps: number; worstUploadMbps: number; worstLatencyMs: number; worstJitterMs: number; }
     interface EndpointSummary { name: string; count: number; avg: { downloadMbps: number; uploadMbps: number; latencyMs: number; jitterMs: number } }
 
-    const THRESHOLDS = {
-      download: { warn: 50, crit: 25 },
-      upload: { warn: 20, crit: 10 },
-      latency: { warn: 20, crit: 50 },
-      jitter: { warn: 5, crit: 15 },
+    const ANOMALY_CONFIG = {
+      minIqr: parseFloat(getEnv('ANOMALY_MIN_IQR') || '0.1'),
+      warnMultiplier: parseFloat(getEnv('ANOMALY_WARN_IQR_MULTIPLIER') || '4'),
+      critMultiplier: parseFloat(getEnv('ANOMALY_CRIT_IQR_MULTIPLIER') || '8'),
+    };
+
+    const ENDPOINT_CONFIG = {
+      minIqr: parseFloat(getEnv('ENDPOINT_ANOMALY_MIN_IQR') || '0.5'),
+      warnMultiplier: parseFloat(getEnv('ENDPOINT_WARN_IQR_MULTIPLIER') || '5'),
+      critMultiplier: parseFloat(getEnv('ENDPOINT_CRIT_IQR_MULTIPLIER') || '10'),
     };
 
     let selectedLimit = 100;
@@ -363,6 +368,53 @@ import Layout from '../layouts/Layout.astro';
     let displayedCount = 10;
     let selectedHours = 24;
     let allRecords: SpeedtestRecord[] = [];
+
+    let anomalyConfig: {
+      minIqr: number;
+      warnMultiplier: number;
+      critMultiplier: number;
+    } = {
+      minIqr: 0.1,
+      warnMultiplier: 4,
+      critMultiplier: 8,
+    };
+
+    let endpointConfig: {
+      minIqr: number;
+      warnMultiplier: number;
+      critMultiplier: number;
+    } = {
+      minIqr: 0.5,
+      warnMultiplier: 5,
+      critMultiplier: 10,
+    };
+
+    async function loadAnomalyConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+        anomalyConfig = {
+          minIqr: parseFloat(config.ANOMALY_MIN_IQR),
+          warnMultiplier: parseFloat(config.ANOMALY_WARN_IQR_MULTIPLIER),
+          critMultiplier: parseFloat(config.ANOMALY_CRIT_IQR_MULTIPLIER),
+        };
+        endpointConfig = {
+          minIqr: parseFloat(config.ENDPOINT_ANOMALY_MIN_IQR),
+          warnMultiplier: parseFloat(config.ENDPOINT_WARN_IQR_MULTIPLIER),
+          critMultiplier: parseFloat(config.ENDPOINT_CRIT_IQR_MULTIPLIER),
+        };
+        console.log('Loaded anomaly config from /api/config:', { anomalyConfig, endpointConfig });
+      } catch (err) {
+        console.error('Failed to load anomaly config:', err);
+      }
+    }
+
+    function getEnv(key: string): string | undefined {
+      if (typeof window !== 'undefined' && (window as any).__ENV__) {
+        return (window as any).__ENV__[key];
+      }
+      return undefined;
+    }
 
     let throughputChart = null;
     let latencyChart = null;
@@ -410,10 +462,13 @@ import Layout from '../layouts/Layout.astro';
 
     function isAnomaly(value: number, stats: { median: number; q1: number; q3: number }, lowerIsBad: boolean = false): 'ok' | 'warn' | 'crit' {
       const iqr = stats.q3 - stats.q1;
-      const warnLower = stats.median - (iqr * 3);
-      const warnUpper = stats.median + (iqr * 3);
-      const critLower = stats.median - (iqr * 5);
-      const critUpper = stats.median + (iqr * 5);
+
+      if (iqr < ANOMALY_CONFIG.minIqr) return 'ok';
+
+      const warnLower = stats.median - (iqr * ANOMALY_CONFIG.warnMultiplier);
+      const warnUpper = stats.median + (iqr * ANOMALY_CONFIG.warnMultiplier);
+      const critLower = stats.median - (iqr * ANOMALY_CONFIG.critMultiplier);
+      const critUpper = stats.median + (iqr * ANOMALY_CONFIG.critMultiplier);
 
       if (lowerIsBad) {
         if (value < critLower || value < stats.q1) return 'crit';
@@ -701,10 +756,13 @@ import Layout from '../layouts/Layout.astro';
 
       const isEndpointAnomaly = (value: number, stats: { median: number; q1: number; q3: number }, lowerIsBad: boolean = false): 'ok' | 'warn' | 'crit' => {
         const iqr = stats.q3 - stats.q1;
-        const warnLower = stats.median - (iqr * 3);
-        const warnUpper = stats.median + (iqr * 3);
-        const critLower = stats.median - (iqr * 6);
-        const critUpper = stats.median + (iqr * 6);
+
+        if (iqr < ENDPOINT_CONFIG.minIqr) return 'ok';
+
+        const warnLower = stats.median - (iqr * ENDPOINT_CONFIG.warnMultiplier);
+        const warnUpper = stats.median + (iqr * ENDPOINT_CONFIG.warnMultiplier);
+        const critLower = stats.median - (iqr * ENDPOINT_CONFIG.critMultiplier);
+        const critUpper = stats.median + (iqr * ENDPOINT_CONFIG.critMultiplier);
 
         if (lowerIsBad) {
           if (value < critLower || value < stats.q1) return 'crit';

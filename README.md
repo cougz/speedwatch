@@ -60,6 +60,38 @@ All configured in `wrangler.jsonc`:
 | `CACHE_TTL_SECONDS` | `"60"` | Response cache duration |
 | `MAX_RESULTS_PER_PAGE` | `"200"` | Max records per results page |
 
+### Anomaly Detection (IQR) Configuration
+
+IQR-based anomaly detection is fully configurable via environment variables:
+
+| Variable | Default | Description |
+|----------|----------|-------------|
+| `ANOMALY_MIN_IQR` | `"0.1"` | Minimum IQR before applying detection (Recent Results) |
+| `ANOMALY_WARN_IQR_MULTIPLIER` | `"4"` | Warning threshold multiplier (Recent Results) |
+| `ANOMALY_CRIT_IQR_MULTIPLIER` | `"8"` | Critical threshold multiplier (Recent Results) |
+| `ENDPOINT_ANOMALY_MIN_IQR` | `"0.5"` | Minimum IQR before applying detection (Endpoint Breakdown) |
+| `ENDPOINT_WARN_IQR_MULTIPLIER` | `"5"` | Warning threshold multiplier (Endpoint Breakdown) |
+| `ENDPOINT_CRIT_IQR_MULTIPLIER` | `"10"` | Critical threshold multiplier (Endpoint Breakdown) |
+
+**How IQR Detection Works:**
+
+1. Calculate median and quartiles (Q1, Q3) from recent records
+2. Calculate IQR = Q3 - Q1 (middle 50% of data)
+3. Only apply detection if IQR ≥ MIN_IQR (skips tight datasets)
+4. WARN flagged when value outside median ± WARN_MULTIPLIER×IQR
+5. CRIT flagged when value outside median ± CRIT_MULTIPLIER×IQR
+
+**Example with defaults:**
+- Recent Results: IQR must be ≥0.1ms, warn at ±4×IQR, crit at ±8×IQR
+- Endpoint Breakdown: IQR must be ≥0.5ms, warn at ±5×IQR, crit at ±10×IQR
+
+**To customize:**
+1. Go to Cloudflare Dashboard → Workers & Pages
+2. Select your `speedwatch` Worker
+3. Settings → Variables
+4. Add/update any of the variables above
+5. Save to trigger redeployment
+
 ### Bindings
 
 | Binding | Type | Value |
