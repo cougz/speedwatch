@@ -264,9 +264,9 @@ import Layout from '../layouts/Layout.astro';
     </div>
 
     <div class="options-row">
-      <div class="pill time-pill" data-hours="1">1h</div>
+      <div class="pill time-pill active" data-hours="1">1h</div>
       <div class="pill time-pill" data-hours="6">6h</div>
-      <div class="pill time-pill active" data-hours="24">24h</div>
+      <div class="pill time-pill" data-hours="24">24h</div>
       <div class="pill time-pill" data-hours="168">7d</div>
       <div class="pill time-pill" data-hours="8760">All</div>
       <div class="pill" id="custom-pill">Custom</div>
@@ -463,8 +463,31 @@ import Layout from '../layouts/Layout.astro';
     let selectedEndpoint = 'all';
     let serverCursor: string | null = null;
     let displayedCount = 10;
-    let selectedHours = 24;
+    let selectedHours = 1;
     let allRecords: SpeedtestRecord[] = [];
+
+    // In-memory cache of pre-fetched summary responses keyed by hours value.
+    // Populated silently in the background after the initial 1h load completes.
+    const summaryCache = new Map<number, SummaryResponse>();
+    const PRELOAD_HOURS = [6, 24, 168, 8760] as const;
+
+    async function preloadSummaries(): Promise<void> {
+      for (const hours of PRELOAD_HOURS) {
+        // Stagger requests by 400ms so they don't all fire simultaneously
+        // and risk hitting the 60 req/60s rate limiter.
+        await new Promise(resolve => setTimeout(resolve, 400));
+        try {
+          const res = await fetch(`/api/summary?hours=${hours}`);
+          if (res.ok) {
+            const data: SummaryResponse = await res.json();
+            summaryCache.set(hours, data);
+            console.log(`[preload] Cached ${hours}h summary (${data.totalRecords} records)`);
+          }
+        } catch (e) {
+          console.warn(`[preload] Failed to preload ${hours}h:`, e);
+        }
+      }
+    }
 
     let anomalyConfig: {
       warnThreshold: number;
@@ -604,8 +627,34 @@ import Layout from '../layouts/Layout.astro';
 
     async function fetchData() {
       const meta = document.getElementById('page-meta');
-      if (meta) meta.textContent = 'Loading...';
+
+      // Check in-memory cache first — gives instant render on pill switches.
+      // Only show "Loading..." if we are actually going to the network.
+      const cachedSummary = summaryCache.get(selectedHours);
+      if (!cachedSummary && meta) meta.textContent = 'Loading...';
+
       try {
+        if (cachedSummary) {
+          // Serve KPIs/charts/incidents/endpoints instantly from cache.
+          // Still fetch fresh results for the table so row data is current.
+          const resultsRes = await fetch(`/api/results?limit=200`);
+          if (!resultsRes.ok) throw new Error(`Results: ${resultsRes.status}`);
+          const results = await resultsRes.json();
+
+          allRecords = results.records || cachedSummary.records || [];
+          serverCursor = results.cursor || null;
+          displayedCount = 10;
+
+          renderKpiCards(cachedSummary);
+          renderCharts(cachedSummary);
+          renderIncidents(cachedSummary.incidents || []);
+          renderEndpoints(cachedSummary.byEndpoint || {});
+          renderTable();
+          updatePageMeta(cachedSummary);
+          return;
+        }
+
+        // No cache hit — fetch fresh from network (always the case for initial 1h load).
         const [summaryRes, resultsRes] = await Promise.all([
           fetch(`/api/summary?hours=${selectedHours}`),
           fetch(`/api/results?limit=200`)
@@ -617,7 +666,10 @@ import Layout from '../layouts/Layout.astro';
         const summary: SummaryResponse = await summaryRes.json();
         const results = await resultsRes.json();
 
-        allRecords = summary.records || [];
+        // Store in cache so future pill switches to this window are instant.
+        summaryCache.set(selectedHours, summary);
+
+        allRecords = results.records || summary.records || [];
         serverCursor = results.cursor || null;
         displayedCount = 10;
 
@@ -627,6 +679,7 @@ import Layout from '../layouts/Layout.astro';
         renderEndpoints(summary.byEndpoint || {});
         renderTable();
         updatePageMeta(summary);
+
       } catch (err) {
         console.error('fetchData error:', err);
         if (meta) meta.textContent = `Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
@@ -1171,9 +1224,21 @@ import Layout from '../layouts/Layout.astro';
         setTimeout(init, 100);
         return;
       }
-      loadAnomalyConfig().then(() => {
-        setInterval(fetchData, 60000);
-        fetchData();
+      loadAnomalyConfig().then(async () => {
+        // Step 1: Render the default 1h view immediately.
+        await fetchData();
+
+        // Step 2: Silently preload all other time windows in the background.
+        // This runs after the first render so it never delays what the user sees first.
+        preloadSummaries();
+
+        // Step 3: Auto-refresh every 60s.
+        // Clear the entire cache so stale data is never shown indefinitely,
+        // re-fetch only the currently visible window, then re-preload the rest.
+        setInterval(() => {
+          summaryCache.clear();
+          fetchData().then(() => preloadSummaries());
+        }, 60_000);
       });
     }
 
