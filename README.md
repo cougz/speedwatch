@@ -25,9 +25,12 @@ R2 Bucket (JSON files, one per speedtest run)
 1. **Ingestion**: Speedtest agents upload JSON results to an R2 bucket
 2. **Parsing**: Worker reads R2 files, parses metrics, converts bytes/sec to Mbps
 3. **Aggregation**: Summarises data by time windows, calculates percentiles (p50/p95/p99), groups by endpoint
-4. **Anomaly Detection**: Dual-gate model — a value is only flagged if it exceeds *both* a relative deviation threshold *and* an absolute floor (see [Anomaly Detection](#anomaly-detection) below)
-5. **Incident Detection**: Consecutive CRIT-level records are merged into a single incident card; warn-level runs do not surface as incidents
-6. **Dashboard**: Renders KPIs, charts, incidents, endpoint breakdown, and results table
+4. **Cron Job**: Runs every minute to precompute aggregated summaries for 1h, 6h, 24h, 7d, and All time windows, stored as `_cache/summary-{hours}.json` in R2
+5. **Prebuilt Summaries**: Ultra-fast response (~10ms) when prebuilt data exists; contains only aggregated KPIs, timeline, and incidents (no raw records)
+6. **Metadata-First Parsing**: R2 list includes custom metadata, allowing record parsing without body fetch when available; dramatically reduces bandwidth
+7. **Anomaly Detection**: Dual-gate model — a value is only flagged if it exceeds *both* a relative deviation threshold *and* an absolute floor (see [Anomaly Detection](#anomaly-detection) below)
+8. **Incident Detection**: Consecutive CRIT-level records are merged into a single incident card; warn-level runs do not surface as incidents
+9. **Dashboard**: Renders KPIs, charts, incidents, endpoint breakdown, and results table
 
 ## Compatible Data Sources
 
@@ -39,7 +42,10 @@ SpeedWatch is designed to work with JSON speedtest results and is particularly w
 
 ### API Endpoints
 
-- `GET /api/summary?hours={24}` — Aggregated KPIs, percentiles, per-endpoint breakdown, hourly timeline, incidents
+- `GET /api/summary?hours={24}` — Aggregated KPIs, percentiles, per-endpoint breakdown, hourly timeline, incidents. Serves from R2 prebuilt summaries when available (~10ms) or live aggregation (~1000ms)
+- `GET /api/results?limit={100}&cursor={cursor}&endpoint={name}&from={iso}` — Paginated raw test records. Uses metadata-first R2 parsing for optimal performance
+- `GET /api/config` — Runtime configuration including relative thresholds and absolute floors
+- `GET /llms.txt` — AI agent discoverability document
 - `GET /api/results?limit={100}&cursor={cursor}&endpoint={name}&from={iso}` — Paginated raw test records
 - `GET /api/config` — Runtime configuration including relative thresholds and absolute floors
 - `GET /llms.txt` — AI agent discoverability document
@@ -65,8 +71,9 @@ SpeedWatch is designed to work with JSON speedtest results and is particularly w
 
 ![Recents](./recents.png)
 
-- **Auto-refresh** — 60-second data refresh
-- **Time Range Pills** — 1h, 6h, 24h, 7d, All, Custom date range
+- **Auto-refresh** — 60-second data refresh with smart cache invalidation; clears in-memory cache and re-fetches active view, then silently preloads others
+- **Time Range Pills** — Default 1h view (fastest load); instant switching via in-memory cache; other windows (6h, 24h, 7d, All) preload in background
+- **Three-Layer Caching**: UI in-memory cache → R2 prebuilt summaries → Cloudflare KV cache for optimal performance
 
 ## Anomaly Detection
 
