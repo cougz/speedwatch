@@ -47,6 +47,9 @@ describe("GET /api/results", () => {
     ctx = {
       waitUntil: vi.fn(),
     } as unknown as ExecutionContext;
+
+    // Clear any cache from previous tests
+    vi.clearAllMocks();
   });
 
   it("returns 200 with correct records shape", async () => {
@@ -91,23 +94,33 @@ describe("GET /api/results", () => {
   });
 
   it("endpoint filter works", async () => {
+    const now = new Date();
+    const ts1 = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts2 = new Date(now.getTime() - 10 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { ...mockObject, key: "speedtest-results/2026-02-21T20-48-36-141Z.json" },
-        { ...mockObject, key: "speedtest-results/2026-02-21T20-49-36-141Z.json" },
+        { ...mockObject, key: `speedtest-results/${ts1}.json` },
+        { ...mockObject, key: `speedtest-results/${ts2}.json` },
       ],
       truncated: false,
       cursor: null,
     });
-    env.R2_BUCKET.get = vi.fn()
-      .mockResolvedValueOnce({
-        text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, endpoint: "https://custom-t0.speed.cloudflare.com" })),
-      })
-      .mockResolvedValueOnce({
-        text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, endpoint: "https://custom-t1.speed.cloudflare.com" })),
-      });
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      // Match the object keys and return appropriate data
+      if (key.includes(ts1)) {
+        return Promise.resolve({
+          text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, endpoint: "https://custom-t0.speed.cloudflare.com" })),
+        });
+      }
+      if (key.includes(ts2)) {
+        return Promise.resolve({
+          text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, endpoint: "https://custom-t1.speed.cloudflare.com" })),
+        });
+      }
+      return Promise.resolve(null);
+    });
 
-    const request = new Request("https://speedwatch.example.com/api/results?endpoint=custom-t0");
+    const request = new Request("https://speedwatch.example.com/api/results?endpoint=custom-t0&no-cache=true");
     const response = await handleResults(request, env, ctx);
     const json = await response.json() as { records: Array<{ endpointName: string }>; };
     expect(json.records.length).toBe(1);

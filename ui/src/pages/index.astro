@@ -607,7 +607,7 @@ import Layout from '../layouts/Layout.astro';
       if (meta) meta.textContent = 'Loading...';
       try {
         const [summaryRes, resultsRes] = await Promise.all([
-          fetch(`/api/summary?hours=${selectedHours}&no-cache=true`),
+          fetch(`/api/summary?hours=${selectedHours}`),
           fetch(`/api/results?limit=200`)
         ]);
 

@@ -57,19 +57,27 @@ describe("GET /api/summary", () => {
     ctx = {
       waitUntil: vi.fn(),
     } as unknown as ExecutionContext;
+
+    // Clear any cache from previous tests
+    vi.clearAllMocks();
   });
 
   it("returns 200 with all expected fields", async () => {
+    const now = new Date();
+    const timestamp = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
-      objects: [{ key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 }],
+      objects: [{ key: `speedtest-results/${timestamp}.json`, uploaded: new Date(), size: 500 }],
       truncated: false,
       cursor: null,
     });
-    env.R2_BUCKET.get = vi.fn().mockResolvedValue({
-      text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      if (key === '_cache/summary-24.json') return Promise.resolve(null);
+      return Promise.resolve({
+        text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+      });
     });
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
 
     expect(response.status).toBe(200);
@@ -86,9 +94,12 @@ describe("GET /api/summary", () => {
   });
 
   it("byEndpoint keys match unique endpoints", async () => {
+    const now = new Date();
+    const ts1 = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts2 = new Date(now.getTime() - 10 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     const objects = [
-      { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-      { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+      { key: `speedtest-results/${ts1}.json`, uploaded: new Date(), size: 500 },
+      { key: `speedtest-results/${ts2}.json`, uploaded: new Date(), size: 500 },
     ];
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects,
@@ -96,7 +107,8 @@ describe("GET /api/summary", () => {
       cursor: null,
     });
     let getCallCount = 0;
-    env.R2_BUCKET.get = vi.fn().mockImplementation((key) => {
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      if (key === '_cache/summary-24.json') return Promise.resolve(null);
       getCallCount++;
       if (getCallCount === 1) {
         return Promise.resolve({
@@ -111,27 +123,33 @@ describe("GET /api/summary", () => {
       return Promise.resolve(null);
     });
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
     const json = await response.json() as { byEndpoint: Record<string, unknown>; };
-    expect(getCallCount).toBe(2);
+    expect(getCallCount).toBe(2); // With no-cache, prebuilt check is skipped
     expect(Object.keys(json.byEndpoint)).toEqual(expect.arrayContaining(["custom-t0", "custom-t1"]));
   });
 
   it("timeline is sorted ascending by hour", async () => {
+    const now = new Date();
+    const ts1 = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts2 = new Date(now.getTime() - 10 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts1}.json`, uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts2}.json`, uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.R2_BUCKET.get = vi.fn().mockResolvedValue({
-      text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      if (key === '_cache/summary-24.json') return Promise.resolve(null);
+      return Promise.resolve({
+        text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+      });
     });
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
     const json = await response.json() as { timeline: Array<{ hour: string }>; };
     expect(json.timeline.length).toBeGreaterThan(0);
@@ -141,24 +159,34 @@ describe("GET /api/summary", () => {
   });
 
   it("successRate computed correctly when some records fail", async () => {
+    const now = new Date();
+    const ts1 = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts2 = new Date(now.getTime() - 10 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts1}.json`, uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts2}.json`, uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.R2_BUCKET.get = vi.fn()
-      .mockResolvedValueOnce({
-        text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, success: true })),
-      } as unknown as R2ObjectBody)
-      .mockResolvedValueOnce({
-        text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, success: false })),
-      } as unknown as R2ObjectBody)
-      .mockResolvedValue(null);
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      if (key === '_cache/summary-24.json') return Promise.resolve(null);
+      // Return appropriate data based on the key
+      if (key.includes(ts1)) {
+        return Promise.resolve({
+          text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, success: true })),
+        } as unknown as R2ObjectBody);
+      }
+      if (key.includes(ts2)) {
+        return Promise.resolve({
+          text: vi.fn().mockResolvedValue(JSON.stringify({ ...mockData, success: false })),
+        } as unknown as R2ObjectBody);
+      }
+      return Promise.resolve(null);
+    });
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
     const json = await response.json() as { successRate: number; };
     expect(json.successRate).toBe(0.5);
@@ -175,26 +203,33 @@ describe("GET /api/summary", () => {
       truncated: false,
       cursor: null,
     });
-    env.R2_BUCKET.get = vi.fn().mockResolvedValue({
-      text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      if (key === '_cache/summary-24.json') return Promise.resolve(null);
+      return Promise.resolve({
+        text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+      });
     });
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
     const json = await response.json() as { totalRecords: number; };
     expect(json.totalRecords).toBeLessThanOrEqual(2);
   });
 
-  it("two consecutive warn records -> one warn incident", async () => {
+  it("two consecutive warn records -> no crit incidents (warn incidents are filtered)", async () => {
+    const now = new Date();
+    const ts1 = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts2 = new Date(now.getTime() - 10 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts1}.json`, uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts2}.json`, uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
     env.R2_BUCKET.get = vi.fn()
+      .mockResolvedValueOnce(null) // prebuilt
       .mockResolvedValueOnce({
         text: vi.fn().mockResolvedValue(JSON.stringify(mockSlowData)),
       } as unknown as R2ObjectBody)
@@ -203,25 +238,30 @@ describe("GET /api/summary", () => {
       } as unknown as R2ObjectBody)
       .mockResolvedValue(null);
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
     const json = await response.json() as { incidents: Array<{ level: string }>; };
-    expect(json.incidents.length).toBe(1);
-    expect(json.incidents[0].level).toBe("warn");
+    // With the new implementation, only crit incidents are returned
+    expect(json.incidents.length).toBe(0);
   });
 
   it("crit record in middle of warn -> incident escalates to crit", async () => {
     const critData = { ...mockSlowData, result: { ...mockSlowData.result, download: 1000000, upload: 500000 } };
+    const now = new Date();
+    const ts1 = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts2 = new Date(now.getTime() - 10 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts3 = new Date(now.getTime() - 15 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "speedtest-results/2026-02-21T20-50-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts1}.json`, uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts2}.json`, uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts3}.json`, uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
     env.R2_BUCKET.get = vi.fn()
+      .mockResolvedValueOnce(null) // prebuilt
       .mockResolvedValueOnce({
         text: vi.fn().mockResolvedValue(JSON.stringify(mockSlowData)),
       } as unknown as R2ObjectBody)
@@ -233,24 +273,29 @@ describe("GET /api/summary", () => {
       } as unknown as R2ObjectBody)
       .mockResolvedValue(null);
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
     const json = await response.json() as { incidents: Array<{ level: string }>; };
     expect(json.incidents.length).toBe(1);
     expect(json.incidents[0].level).toBe("crit");
   });
 
-  it("ok record between two warn records -> two separate incidents", async () => {
+  it("ok record between two warn records -> 0 crit incidents (warn incidents are filtered)", async () => {
+    const now = new Date();
+    const ts1 = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts2 = new Date(now.getTime() - 10 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts3 = new Date(now.getTime() - 15 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date(), size: 500 },
-        { key: "speedtest-results/2026-02-21T20-50-36-141Z.json", uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts1}.json`, uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts2}.json`, uploaded: new Date(), size: 500 },
+        { key: `speedtest-results/${ts3}.json`, uploaded: new Date(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
     env.R2_BUCKET.get = vi.fn()
+      .mockResolvedValueOnce(null) // prebuilt
       .mockResolvedValueOnce({
         text: vi.fn().mockResolvedValue(JSON.stringify(mockSlowData)),
       } as unknown as R2ObjectBody)
@@ -262,29 +307,101 @@ describe("GET /api/summary", () => {
       } as unknown as R2ObjectBody)
       .mockResolvedValue(null);
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
     const json = await response.json() as { incidents: unknown[]; };
-    expect(json.incidents.length).toBe(2);
+    // With the new implementation, only crit incidents are returned
+    expect(json.incidents.length).toBe(0);
   });
 
   it("all ok records -> no incidents", async () => {
+    const now = new Date();
+    const ts1 = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const ts2 = new Date(now.getTime() - 10 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
     env.R2_BUCKET.list = vi.fn().mockResolvedValue({
       objects: [
-        { key: "speedtest-results/2026-02-21T20-48-36-141Z.json", uploaded: new Date().toISOString(), size: 500 },
-        { key: "speedtest-results/2026-02-21T20-49-36-141Z.json", uploaded: new Date().toISOString(), size: 500 },
+        { key: `speedtest-results/${ts1}.json`, uploaded: new Date().toISOString(), size: 500 },
+        { key: `speedtest-results/${ts2}.json`, uploaded: new Date().toISOString(), size: 500 },
       ],
       truncated: false,
       cursor: null,
     });
-    env.R2_BUCKET.get = vi.fn().mockResolvedValue({
-      text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      if (key === '_cache/summary-24.json') return Promise.resolve(null);
+      return Promise.resolve({
+        text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+      });
     });
 
-    const request = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const request = new Request("https://speedwatch.example.com/api/summary?hours=24&no-cache=true");
     const response = await handleSummary(request, env, ctx);
     const json = await response.json() as { incidents: unknown[]; incidentCount: number; };
     expect(json.incidents).toEqual([]);
     expect(json.incidentCount).toBe(0);
+  });
+
+  it("serves prebuilt summary from R2 when available, never calls list()", async () => {
+    const prebuilt = {
+      totalRecords: 42, timeRangeHours: 24,
+      avg: { downloadMbps: 70, uploadMbps: 35, latencyMs: 8, jitterMs: 1 },
+      p50: { downloadMbps: 70, uploadMbps: 35, latencyMs: 8, jitterMs: 1 },
+      p95: { downloadMbps: 70, uploadMbps: 35, latencyMs: 8, jitterMs: 1 },
+      p99: { downloadMbps: 70, uploadMbps: 35, latencyMs: 8, jitterMs: 1 },
+      byEndpoint: {}, timeline: [], successRate: 1, incidents: [], incidentCount: 0,
+    };
+
+    // get() is called once for the prebuilt key and must return data.
+    // It must NOT be called for individual result files.
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      if (key === '_cache/summary-24.json') {
+        return Promise.resolve({ text: vi.fn().mockResolvedValue(JSON.stringify(prebuilt)) });
+      }
+      // Any other key means we fell through to live aggregation — that's a test failure.
+      return Promise.resolve(null);
+    });
+
+    // list() must never be called — prebuilt should short-circuit it entirely.
+    env.R2_BUCKET.list = vi.fn();
+
+    const request  = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const response = await handleSummary(request, env, ctx);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Cache")).toBe("PREBUILT");
+    expect(env.R2_BUCKET.list).not.toHaveBeenCalled();
+
+    const json = await response.json() as { totalRecords: number };
+    expect(json.totalRecords).toBe(42);
+  });
+
+  it("falls back to live aggregation when prebuilt summary is absent", async () => {
+    const now = new Date();
+    const timestamp = new Date(now.getTime() - 5 * 60 * 1000).toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    // get() returns null for the prebuilt key, real data for individual files
+    env.R2_BUCKET.get = vi.fn().mockImplementation((key: string) => {
+      if (key === '_cache/summary-24.json') return Promise.resolve(null);
+      return Promise.resolve({
+        text: vi.fn().mockResolvedValue(JSON.stringify(mockData)),
+      });
+    });
+
+    env.R2_BUCKET.list = vi.fn().mockResolvedValue({
+      objects: [
+        { key: `speedtest-results/${timestamp}.json`, uploaded: new Date(), size: 500, customMetadata: {} },
+      ],
+      truncated: false,
+      cursor: null,
+    });
+
+    const request  = new Request("https://speedwatch.example.com/api/summary?hours=24");
+    const response = await handleSummary(request, env, ctx);
+
+    expect(response.status).toBe(200);
+    // Must NOT be PREBUILT — should be MISS (live aggregation)
+    expect(response.headers.get("X-Cache")).toBe("MISS");
+
+    const json = await response.json() as { totalRecords: number; avg: any };
+    expect(json.totalRecords).toBe(1);
+    expect(json.avg).toHaveProperty("downloadMbps");
   });
 });

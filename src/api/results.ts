@@ -2,7 +2,11 @@ import type { Env } from "../types";
 import { checkRateLimit } from "../utils/ratelimit";
 import { buildCacheKey, getCached, putCache } from "../utils/cache";
 import type { SpeedtestRecord } from "../types";
-import { getClientIP, jsonResponse, stripPrefix, filenameToTimestamp, endpointName, toMbps } from "../utils/helpers";
+import {
+  getClientIP, jsonResponse, stripPrefix,
+  filenameToTimestamp, endpointName, toMbps,
+  recordFromMetadata,
+} from "../utils/helpers";
 
 export async function handleResults(
   request: Request,
@@ -72,7 +76,7 @@ export async function handleResults(
   console.log(`[handleResults] Cache MISS, proceeding to fetch from R2`);
 
   try {
-    let listOptions: R2ListOptions = { prefix: env.R2_PREFIX, limit: 1000 };
+    let listOptions: R2ListOptions = { prefix: env.R2_PREFIX, limit: 1000, include: ['customMetadata'] } as any;
     if (cursor) {
       listOptions.cursor = cursor;
     }
@@ -88,9 +92,10 @@ export async function handleResults(
       while (nextCursor && objects.length < limit) {
         const listOpts: R2ListOptions = {
           prefix: env.R2_PREFIX,
-      cursor: nextCursor,
-      limit: 1000,
-        };
+          cursor: nextCursor,
+          limit: 1000,
+          include: ['customMetadata'],
+        } as any;
         const nextList = await env.R2_BUCKET.list(listOpts);
         objects = objects.concat(nextList.objects);
         if (nextList.truncated) {
@@ -112,10 +117,20 @@ export async function handleResults(
     }
 
     const records: SpeedtestRecord[] = [];
+    const fallbackObjs: R2Object[] = [];
+
+    for (const obj of filteredObjects) {
+      const rec = recordFromMetadata(obj.key, env.R2_PREFIX, obj.customMetadata ?? {});
+      if (rec) {
+        if (!endpointFilter || rec.endpointName === endpointFilter) records.push(rec);
+      } else {
+        fallbackObjs.push(obj);
+      }
+    }
 
     const BATCH_SIZE = 50;
-    for (let i = 0; i < filteredObjects.length; i += BATCH_SIZE) {
-      const batch = filteredObjects.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < fallbackObjs.length; i += BATCH_SIZE) {
+      const batch = fallbackObjs.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
         batch.map(async (obj) => {
           const filename = stripPrefix(obj.key, env.R2_PREFIX);
