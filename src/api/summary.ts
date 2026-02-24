@@ -82,11 +82,13 @@ function buildIncidents(records: SpeedtestRecord[], thresholds?: { warn: number;
       continue;
     }
 
+    const critRatio = thresholds?.crit ?? 0.50;
+    const baseline = THRESHOLDS.download.warn;
     const metrics: string[] = [];
-    if (rec.download < THRESHOLDS.download.warn) metrics.push("download");
-    if (rec.upload < THRESHOLDS.upload.warn) metrics.push("upload");
-    if (rec.latency > THRESHOLDS.latency.warn) metrics.push("latency");
-    if (rec.jitter > THRESHOLDS.jitter.warn) metrics.push("jitter");
+    if (rec.download < baseline * critRatio)    metrics.push("download");
+    if (rec.upload   < baseline * critRatio)    metrics.push("upload");
+    if (rec.latency  > THRESHOLDS.latency.crit) metrics.push("latency");
+    if (rec.jitter   > THRESHOLDS.jitter.crit)  metrics.push("jitter");
 
     if (!current) {
       current = {
@@ -115,7 +117,7 @@ function buildIncidents(records: SpeedtestRecord[], thresholds?: { warn: number;
   }
 
   if (current) incidents.push(current);
-  return incidents.reverse();
+  return incidents.filter(i => i.level === "crit").reverse();
 }
 
 export async function handleSummary(

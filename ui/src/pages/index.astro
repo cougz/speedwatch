@@ -469,9 +469,21 @@ import Layout from '../layouts/Layout.astro';
     let anomalyConfig: {
       warnThreshold: number;
       critThreshold: number;
+      absoluteFloors: {
+        download: { warn: number; crit: number };
+        upload:   { warn: number; crit: number };
+        latency:  { warn: number; crit: number };
+        jitter:   { warn: number; crit: number };
+      };
     } = {
       warnThreshold: 0.70,
       critThreshold: 0.50,
+      absoluteFloors: {
+        download: { warn: 50, crit: 25 },
+        upload:   { warn: 20, crit: 10 },
+        latency:  { warn: 20, crit: 50 },
+        jitter:   { warn: 5,  crit: 15 },
+      },
     };
 
     async function loadAnomalyConfig() {
@@ -481,6 +493,7 @@ import Layout from '../layouts/Layout.astro';
         anomalyConfig = {
           warnThreshold: parseFloat(config.ANOMALY_WARN_THRESHOLD) || 0.70,
           critThreshold: parseFloat(config.ANOMALY_CRIT_THRESHOLD) || 0.50,
+          absoluteFloors: config.THRESHOLDS ?? anomalyConfig.absoluteFloors,
         };
         console.log('Loaded anomaly config from /api/config:', anomalyConfig);
       } catch (err) {
@@ -561,18 +574,30 @@ import Layout from '../layouts/Layout.astro';
     function isAnomaly(
       value: number,
       allValues: number[],
-      lowerIsBad: boolean = false
+      lowerIsBad: boolean = false,
+      metric?: 'download' | 'upload' | 'latency' | 'jitter'
     ): 'ok' | 'warn' | 'crit' {
       const baseline = median(allValues);
       if (baseline === 0) return 'ok';
+      const floors = metric ? anomalyConfig.absoluteFloors[metric] : null;
       if (lowerIsBad) {
         const ratio = value / baseline;
-        if (ratio < anomalyConfig.critThreshold) return 'crit';
-        if (ratio < anomalyConfig.warnThreshold) return 'warn';
+        if (ratio < anomalyConfig.critThreshold) {
+          if (!floors || value < floors.crit) return 'crit';
+          if (!floors || value < floors.warn) return 'warn';
+        }
+        if (ratio < anomalyConfig.warnThreshold) {
+          if (!floors || value < floors.warn) return 'warn';
+        }
       } else {
         const ratio = baseline / value;
-        if (ratio < anomalyConfig.critThreshold) return 'crit';
-        if (ratio < anomalyConfig.warnThreshold) return 'warn';
+        if (ratio < anomalyConfig.critThreshold) {
+          if (!floors || value > floors.crit) return 'crit';
+          if (!floors || value > floors.warn) return 'warn';
+        }
+        if (ratio < anomalyConfig.warnThreshold) {
+          if (!floors || value > floors.warn) return 'warn';
+        }
       }
       return 'ok';
     }
@@ -882,10 +907,10 @@ import Layout from '../layouts/Layout.astro';
 
       for (const ep of entries) {
         const barPct = Math.round((ep.avg.downloadMbps / maxDl) * 100);
-        const dlLevel = isAnomaly(ep.avg.downloadMbps, dlValues, true);
-        const ulLevel = isAnomaly(ep.avg.uploadMbps, ulValues, true);
-        const latLevel = isAnomaly(ep.avg.latencyMs, latValues);
-        const jitLevel = isAnomaly(ep.avg.jitterMs, jitValues);
+        const dlLevel = isAnomaly(ep.avg.downloadMbps, dlValues, true, 'download');
+        const ulLevel = isAnomaly(ep.avg.uploadMbps, ulValues, true, 'upload');
+        const latLevel = isAnomaly(ep.avg.latencyMs, latValues, false, 'latency');
+        const jitLevel = isAnomaly(ep.avg.jitterMs, jitValues, false, 'jitter');
 
         const dlColor = dlLevel === 'crit' ? '#f85149' : dlLevel === 'warn' ? '#d29922' : 'var(--brand)';
         const dlBg = dlLevel === 'crit' ? 'rgba(248,81,73,0.1)' : dlLevel === 'warn' ? 'rgba(210,153,34,0.1)' : 'transparent';
@@ -957,10 +982,10 @@ import Layout from '../layouts/Layout.astro';
 
       const slice = filtered.slice(0, displayedCount);
       for (const rec of slice) {
-        const dlLevel = isAnomaly(rec.download, dlValues, true);
-        const ulLevel = isAnomaly(rec.upload, ulValues, true);
-        const latLevel = isAnomaly(rec.latency, latValues);
-        const jitLevel = isAnomaly(rec.jitter, jitValues);
+        const dlLevel = isAnomaly(rec.download, dlValues, true, 'download');
+        const ulLevel = isAnomaly(rec.upload, ulValues, true, 'upload');
+        const latLevel = isAnomaly(rec.latency, latValues, false, 'latency');
+        const jitLevel = isAnomaly(rec.jitter, jitValues, false, 'jitter');
 
         const dlColor = dlLevel === 'crit' ? '#f85149' : dlLevel === 'warn' ? '#d29922' : 'var(--brand)';
         const dlBg = dlLevel === 'crit' ? 'rgba(248,81,73,0.15)' : dlLevel === 'warn' ? 'rgba(210,153,34,0.15)' : 'transparent';

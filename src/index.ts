@@ -1,6 +1,7 @@
 import { handleApiRequest } from "./api/handler";
 import { handleLlmsTxt } from "./api/llmstxt";
 import type { Env } from "./types";
+import { THRESHOLDS } from "./types";
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -16,6 +17,7 @@ function handleConfig(env: Env): Response {
   const config = {
     ANOMALY_WARN_THRESHOLD: env.ANOMALY_WARN_THRESHOLD,
     ANOMALY_CRIT_THRESHOLD: env.ANOMALY_CRIT_THRESHOLD,
+    THRESHOLDS,
   };
   return new Response(JSON.stringify(config), {
     headers: {
