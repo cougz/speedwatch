@@ -1,6 +1,5 @@
 import { handleApiRequest } from "./api/handler";
 import { handleLlmsTxt }    from "./api/llmstxt";
-import { runCron }          from "./api/cron";
 import type { Env }         from "./types";
 import { THRESHOLDS }       from "./types";
 
@@ -11,11 +10,6 @@ export default {
     if (path.startsWith("/api")) return handleApiRequest(req, env, ctx);
     if (path === "/llms.txt")   return handleLlmsTxt();
     return env.ASSETS.fetch(req);
-  },
-
-  // ScheduledEvent is a global type from @cloudflare/workers-types — do NOT import it.
-  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runCron(env));
   },
 };
 
